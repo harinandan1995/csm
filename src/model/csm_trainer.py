@@ -1,4 +1,5 @@
 import torch.utils.data
+import trimesh
 
 from src.model.trainer import ITrainer
 from src.nnutils.geometry import *
@@ -18,9 +19,10 @@ class CSMTrainer(ITrainer):
 
     """
 
-    def __init__(self, config):
+    def __init__(self, template, config):
 
         """
+        :param template: Poth to the mesh template for the data as an obj file
         :param config: A dictionary containing the following parameters
 
         - For the parent class
@@ -37,6 +39,9 @@ class CSMTrainer(ITrainer):
         """
 
         super(CSMTrainer, self).__init__(config)
+
+        self.mesh = trimesh.load(template, 'obj')
+        self.summary_writer.add_mesh('Template', self.mesh['vertices'], faces=self.mesh['faces'])
         self.gt_2d_pos_grid = get_gt_positions_grid(config.image_size)
 
     def calculate_loss(self, batch):

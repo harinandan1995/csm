@@ -2,6 +2,8 @@ import os
 
 import torch
 
+from torch.utils.tensorboard import SummaryWriter
+
 
 class ITrainer:
     """
@@ -24,6 +26,7 @@ class ITrainer:
         optim.type: Type of the optimizer to the used during the training. Allowed values are 'adam' and 'sgd'
         optim.lr: Learning rate for the optimizer
         optim.beta1: Beta1 value for the optimizer
+        summary_dir: Path to the directory where the summaries should be stored
         """
 
         self.config = config
@@ -34,6 +37,8 @@ class ITrainer:
 
         self.data_loader = self.get_data_loader()
         self.optimizer = self._get_optimizer(config)
+
+        self.summary_writer = self._get_summary_writer()
 
     def train(self):
 
@@ -134,3 +139,13 @@ class ITrainer:
         """
 
         return NotImplementedError
+
+    def _get_summary_writer(self):
+
+        """
+        Create a summary writer to write the summaries like losses, meshes etc.
+
+        :return: torch.utils.tensorboard.SummaryWriter
+        """
+
+        return SummaryWriter(self.config.summary_dir)
