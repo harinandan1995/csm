@@ -13,7 +13,8 @@ class CSMTrainer(ITrainer):
     W - Width of the image
     H - Height of the image
     B - Batch size of the image
-    CP - Number of camera poses that are predicted
+    CP - Number of camera pose hypothesis. CP is 1 if only one pose is predicted or
+    if the ground truth pose is used during the training
 
     """
 
@@ -44,17 +45,19 @@ class CSMTrainer(ITrainer):
         Calculates the total loss for the batch which is a combination of the
         - Geometric cycle consistency loss
         - Visibility constraint loss
-        - Mask reprojection loss
+        - Mask re-projection loss
         - Camera pose diverse loss
 
-        The mask reprojection and diverse loss are only calculated if the
+        The mask re-projection and diverse loss are only calculated if the
         ground truth camera pose is not used
 
         :param batch: Batch data from the data loader which is a dict containing the following parameters
         img: The input image
         mask: The ground truth foreground mask
         sfm_pose: The ground truth camera pose
-        :return:
+        use_gt_cam_pos: True or False. False if you want to model to predict the camera poses as well.
+
+        :return: The total loss calculated for the batch
         """
 
         img = batch['img']
@@ -65,13 +68,13 @@ class CSMTrainer(ITrainer):
         pred_out = self.model(img, mask)
 
         pred_positions = pred_out['pred_positions']
-        pred_poses = pred_out['pred_poses']
-        pred_masks = pred_out['pred_masks']
         pred_depths = pred_out['pred_depths']
         pred_z = pred_out['pred_z']
+        pred_poses = pred_out['pred_poses']
+        pred_masks = pred_out['pred_masks']
 
         loss = geometric_cycle_consistency_loss(self.gt_2d_pos_grid, pred_positions, mask)
-        loss += visibility_constraint_loss(pred_depths, pred_z)
+        loss += visibility_constraint_loss(pred_depths, pred_z, mask)
         loss += mask_reprojection_loss(mask, pred_masks)
         loss += diverse_loss(pred_poses)
 
@@ -86,6 +89,23 @@ class CSMTrainer(ITrainer):
             shuffle=self.config.shuffle, num_workers=self.config.workers)
 
     def get_model(self):
+
+        """
+        Returns a torch model which takes image(B X W X H) and mask (B X W X H) and returns a
+        dictionary containing the following parameters
+
+        pred_positions: A (B X CP X W X H X 2) tensor with the final projected positions in camera frame
+        after performing 2D to 3D to 2D transformations
+        pred_depths: A (B X CP X W X H) tensor with the depths rendered either using the predicted camera poses
+        or the ground truth pose
+        pred_z: A (B X CP X W X H) tensor with the z values in the camera frame for the positions predicted by the model
+        pred_poses: A (B X CP X 6) tensor containing the predicted camera poses.
+        Is be used only if config.use_gt_cam_pos is False.
+        pred_masks: A (B X CP X W X H) tensor with masks rendered using the predicted camera poses.
+        Is used only if config.use_gt_cam_pos is False
+
+        :return: A torch model satisfying the above input output structure
+        """
 
         # TODO: Write the code to get the actual model once the model is implemented
         return "None"
