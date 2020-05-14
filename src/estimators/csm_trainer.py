@@ -1,7 +1,7 @@
 import torch.utils.data
 import trimesh
 
-from src.model.trainer import ITrainer
+from src.estimators.trainer import ITrainer
 from src.nnutils.geometry import *
 from src.nnutils.losses import *
 
