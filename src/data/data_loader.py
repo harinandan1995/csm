@@ -1,16 +1,10 @@
-from cub_dataset import CubDataset
-
-
-
-
 import os.path as osp
-import matplotlib
-import torch
 
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from absl import app, flags
+
+from src.data.cub_dataset import CubDataset
 
 curr_path = osp.dirname(osp.abspath(__file__))
 cache_path = osp.join(curr_path, 'cachedir')
@@ -20,18 +14,19 @@ flags.DEFINE_string('result_dir', osp.join(cache_path, 'results'),
 flags.DEFINE_string('dataset', 'cub', 'cub or imnet or p3d')
 flags.DEFINE_integer('seed', 0, 'seed for randomness')
 
-cm = plt.get_cmap('jet')
-
 
 class Dataloder(CubDataset):
-    def __init__(self,config):
+    def __init__(self, config):
         super(Dataloder, self).__init__(config)
         # this init is for the expanding the dataset choice (p3d, imnet)
         return
 
 
 FLAGS = flags.FLAGS
+
+
 def main(_):
+
     seed = FLAGS.seed
     np.random.seed(seed)
 
@@ -59,7 +54,6 @@ def main(_):
         else:
             print(k)
             print(type(i))
-
 
 
 if __name__ == '__main__':

@@ -1,28 +1,23 @@
 import os.path as osp
-import numpy as np
-import scipy.misc
-import scipy.linalg
-import scipy.ndimage.interpolation
-from absl import flags
-import math
 
-import torch
-from torch.utils.data import Dataset, DataLoader
-import imageio
-import torchvision
 import cv2
-import pytorch3d
-from pytorch3d.structures import Meshes, Pointclouds
+import imageio
+import numpy as np
+import torch
+from absl import flags
 from pytorch3d import _C
-import transformations
-import image
+from pytorch3d.structures import Meshes, Pointclouds
+from torch.utils.data import Dataset
 
+from src.data import image
+from src.data import transformations
+from src.nnutils.geometry import convert_3d_to_uv_coordinates
 
 flags.DEFINE_integer('img_size', 256, 'image size')
 flags.DEFINE_integer('img_height', 320, 'image height')
 flags.DEFINE_integer('img_width', 512, 'image width')
 flags.DEFINE_enum('split', 'train', ['train', 'val', 'all', 'test'], 'eval split')
-flags.DEFINE_enum('transform', 'flip', [ 'flip'], 'eval split')
+flags.DEFINE_enum('transform', 'flip', ['flip'], 'eval split')
 flags.DEFINE_float('padding_frac', 0.05, 'bbox is increased by this fraction of max_dim')
 flags.DEFINE_float('jitter_frac', 0.05, 'bbox is jittered by this fraction of max_dim')
 flags.DEFINE_boolean('flip', True, 'Allow flip bird left right')
@@ -32,8 +27,8 @@ flags.DEFINE_integer('number_pairs', 10000,
                      'N random pairs from the test to check if the correspondence transfers.')
 flags.DEFINE_integer('num_kps', 15, 'Number of keypoints')
 
-class IDataset(Dataset):
 
+class IDataset(Dataset):
     """
     Interface for the dataset
     """
@@ -51,8 +46,7 @@ class IDataset(Dataset):
         raise NotImplementedError('get_len method should be implemented in the child class')
 
     def __getitem__(self, index):
-        '''
-
+        """
         :param index: the index of image
         :return: a dict contains info of the given index image
         img: A np.ndarray 3*256*256, index given image after crop and mirror (if train)
@@ -67,7 +61,7 @@ class IDataset(Dataset):
         if self.transform == 'flip'
         flip_img: A np.ndarray 3*256*256, img after flip
         flip_mask: A np.ndarray 256*256, mask after transformation
-        '''
+        """
         img, kp, kp_uv, mask, sfm_pose = self.forward_img(index)
         elem = {
             'img': img,
@@ -88,7 +82,6 @@ class IDataset(Dataset):
         return elem
 
     def get_data(self):
-
         """
         Child class must implement this method, data should be a list of dicts with each dict containing the info of all images
 
@@ -97,14 +90,12 @@ class IDataset(Dataset):
 
         raise NotImplementedError('get_items method should be implemented in the child class')
 
-
     # TODO: Write the augmentation functions if necessary, like vertical & horizontal flips, contrast adjustments etc.
     #  check https://pytorch.org/docs/stable/torchvision/transforms.html for transformations
 
     # Space to implement common functions that can be used across multiple datasets
     def forward_img(self, index):
-        '''
-
+        """
         :param index: list or int, the index of image
         :return:
         img: A np.ndarray 3*256*256, index given image after crop and mirror (if train)
@@ -115,7 +106,7 @@ class IDataset(Dataset):
         float, scale,
         np.ndarray 1*2, trans
         np.ndarray 1*4, quaternion
-        '''
+        """
 
         data = self.anno[index]
         data_sfm = self.anno_sfm[index]
@@ -179,9 +170,11 @@ class IDataset(Dataset):
 
         return img, kp_norm, kp_uv, mask, sfm_pose
 
-    def crop_image(self, img, mask, bbox, kp, vis, sfm_pose):
-        # crop image and mask and translate kps
-        '''
+    @staticmethod
+    def crop_image(img, mask, bbox, kp, vis, sfm_pose):
+        """
+        crop image and mask and translate kps
+
         :param img: A np.ndarray img_height*img_width*3, index given image after crop and mirror (if train)
         :param mask: A np.ndarray img_height*img_width, mask
         :param bbox: A np.ndarray 1*4, [x1,y1,x2,y2]
@@ -190,7 +183,7 @@ class IDataset(Dataset):
         :param sfm_pose:
         float, scale,
         np.ndarray 1*2, trans
-         np.ndarray 1*4, quaternion
+        np.ndarray 1*4, quaternion
         :return:
         img: A np.ndarray (y2-y1)*(x2-x1)*3
         mask A np.ndarray (y2-y1)*(x2-x1)
@@ -198,8 +191,8 @@ class IDataset(Dataset):
         sfm_pose: sfm_pose after crop
         float, scale,
         np.ndarray 1*2, trans
-         np.ndarray 1*4, quaternion
-        '''
+        np.ndarray 1*4, quaternion
+        """
         img = image.crop(img, bbox, bgval=1)
         mask = image.crop(mask, bbox, bgval=0)
         kp[vis, 0] -= bbox[0]
@@ -214,8 +207,9 @@ class IDataset(Dataset):
         return img, mask, kp, sfm_pose
 
     def scale_image_tight(self, img, mask, kp, vis, sfm_pose):
-        # Scale image to 256*256 with xscale and yscale
-        '''
+        """
+        Scale image to 256*256 with xscale and yscale
+
         :param img: A np.ndarray (y2-y1)*(x2-x1)*3
         :param mask: A np.ndarray (y2-y1)*(x2-x1)
         :param kp: A np.ndarray 15*3 , key points after crop
@@ -233,7 +227,7 @@ class IDataset(Dataset):
         float, scale,
         np.ndarray 1*2, trans
          np.ndarray 1*4, quaternion
-        '''
+        """
         bwidth = np.shape(img)[1]
         bheight = np.shape(img)[0]
 
@@ -252,8 +246,9 @@ class IDataset(Dataset):
         return img_scale, mask_scale, kp, sfm_pose
 
     def scale_image(self, img, mask, kp, vis, sfm_pose):
-        # Scale image to 256*256 with max(xscale, yscale)
-        '''
+        """
+        Scale image to 256*256 with max(xscale, yscale)
+
         :param img: A np.ndarray (y2-y1)*(x2-x1)*3
         :param mask: A np.ndarray (y2-y1)*(x2-x1)
         :param kp: A np.ndarray 15*3 , key points after crop
@@ -270,7 +265,7 @@ class IDataset(Dataset):
         float, scale,
         np.ndarray 1*2, trans
          np.ndarray 1*4, quaternion
-        '''
+        """
         bwidth = np.shape(img)[0]
         bheight = np.shape(img)[1]
         scale = self.img_size / float(max(bwidth, bheight))
@@ -283,8 +278,9 @@ class IDataset(Dataset):
         return img_scale, mask_scale, kp, sfm_pose
 
     def mirror_image(self, img, mask, kp, kp_uv, sfm_pose):
-        # half of img left-right
-        '''
+        """
+        half of img left-right
+
         :param img: A np.ndarray 256*256*3
         :param mask: A np.ndarray 256*256
         :param kp: A np.ndarray 15*3 , key points
@@ -303,7 +299,7 @@ class IDataset(Dataset):
         float, scale,
         np.ndarray 1*2, trans
          np.ndarray 1*4, quaternion
-        '''
+        """
         kp_perm = self.kp_perm
         if self.rngFlip.rand(1) > 0.5 and self.config.flip:
             # Need copy bc torch collate doesnt like neg strides
@@ -327,7 +323,7 @@ class IDataset(Dataset):
             return img, mask, kp, kp_uv, sfm_pose
 
     def normalize_kp(self, kp, sfm_pose, img_h, img_w):
-        '''
+        """
         :param kp: A np.ndarray 15*3 , key points
         :param sfm_pose:
         float, scale,
@@ -341,7 +337,7 @@ class IDataset(Dataset):
         float, scale,
         np.ndarray 1*2, trans
          np.ndarray 1*4, quaternion
-        '''
+        """
         vis = kp[:, 2, None] > 0
         new_kp = np.stack([2 * (kp[:, 0] / img_w) - 1,
                            2 * (kp[:, 1] / img_h) - 1,
@@ -353,15 +349,16 @@ class IDataset(Dataset):
 
         return new_kp, sfm_pose
 
-    def preprocess_to_find_kp_uv(self,kp3d, faces, verts, verts_sphere):
-        # project 3d key points to closest point on mesh and projected in uv_coordinate
-        '''
+    def preprocess_to_find_kp_uv(self, kp3d, faces, verts, verts_sphere):
+        """
+        Project 3d key points to closest point on mesh and projected in uv_coordinate
+
         :param kp3d: A torch.Tensor 15*3, 3d key points
         :param faces: A np.ndarray 1280*3 ,faces of mesh
         :param verts: A np.ndarray 642*3 ,vertexs of mesh
         :param verts_sphere: A np.ndarray 642*3, vertexs of mesh sphere
         :return:kp_uv: A torch.Tensor 15*2, projected key points in uv coordinate
-        '''
+        """
         vert = torch.Tensor(verts).unsqueeze(dim=0).to(self.device)
         face = torch.Tensor(faces).unsqueeze(dim=0).to(self.device)
         mesh = Meshes(vert, face)
@@ -386,6 +383,7 @@ class IDataset(Dataset):
         nx = V[:, 1] * W[:, 2] - V[:, 2] * W[:, 1]
         ny = V[:, 2] * W[:, 0] - V[:, 0] * W[:, 2]
         nz = V[:, 0] * W[:, 1] - V[:, 1] * W[:, 0]
+        nz = V[:, 0] * W[:, 1] - V[:, 1] * W[:, 0]
         nx = nx.reshape(15, 1)
         ny = ny.reshape(15, 1)
         nz = nz.reshape(15, 1)
@@ -397,27 +395,3 @@ class IDataset(Dataset):
         min_inds = np.argmin(dist_to_verts, axis=1)
         kp_verts_sphere = verts_sphere[min_inds]
         return kp_uv
-# geom_utils
-def convert_3d_to_uv_coordinates(points):
-    '''
-    :param points: A np.ndarray 15*3, 3d key points
-    :return:
-    A torch.Tensor 15*2, key points
-    '''
-    eps = 1E-4
-    if type(points) == torch.Tensor:
-        rad = torch.clamp(torch.norm(points, p=2, dim=-1), min=eps)
-
-        phi = torch.atan2(points[..., 1], points[..., 0])
-        theta = torch.asin(torch.clamp(points[..., 2] / rad, min=-1 + eps, max=1 - eps))
-        u = 0.5 + phi / (2 * np.pi)
-        v = 0.5 + theta / np.pi
-        return torch.stack([u, v], dim=-1)
-    else:
-        rad = np.linalg.norm(points, axis=1)
-        phi = np.arctan2(points[:, 1], points[:, 0])
-        theta = np.arcsin(points[:, 2] / rad)
-        u = 0.5 + phi / (2 * np.pi)
-        v = 0.5 + theta / np.pi
-        return np.stack([u, v], axis=1)
-

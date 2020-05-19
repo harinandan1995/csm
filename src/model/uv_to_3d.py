@@ -15,8 +15,8 @@ class UVto3D(nn.Module):
         """
         :param mean_shape: is a dictionary containing the following parameters
         - uv_map: A R X R tensor of defining the UV steps. Where R is the resolution of the UV map.
-        - verts: A None, 3 tensor of vertex coordinates of the mean shape
-        - faces: A None, 3 tensor of faces of the mean shape
+        - verts: A (None, 3) tensor of vertex coordinates of the mean shape
+        - faces: A (None, 3) tensor of faces of the mean shape
         - face_inds: A R X R tensor where each value is the index of the face for
         the corresponding UV value in uv_map.
         Eg. if uv_map[25, 75] is (0.2, 0.6) then face_inds[25, 75]

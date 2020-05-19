@@ -1,14 +1,11 @@
-from dataset import IDataset
 import os.path as osp
 
-import scipy.io as sio
-from absl import flags
-import torch
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-
 import numpy as np
+import scipy.io as sio
+import torch
+from absl import flags
 
+from src.data.dataset import IDataset
 
 curr_path = osp.dirname(osp.abspath(__file__))
 cache_path = osp.join(curr_path, '..', 'cachedir')
@@ -17,8 +14,11 @@ cub_path = osp.join(curr_path, '..', 'CUB_200_2011')
 flags.DEFINE_string('cub_cache_dir', osp.join(cache_path, 'cub'), 'CUB Data Directory')
 flags.DEFINE_string('cub_dir', cub_path, 'CUB Data Directory')
 
+
 class CubDataset(IDataset):
+
     def __init__(self, config):
+
         super(CubDataset, self).__init__(config)
         self.data_dir = config.cub_dir
         self.data_cache_dir = config.cub_cache_dir
@@ -57,14 +57,14 @@ class CubDataset(IDataset):
         return
 
     def __len__(self):
-        '''
-
+        """
         :return: number of images
-        '''
+        """
+
         return self.num_imgs
 
     def get_img_data(self, index):
-        '''
+        """
         :param index: the index of image
         :return: A list of dicts of  contains info of the given index image
         img: A np.ndarray 3*256*256, index given image after crop and mirror (if train)
@@ -79,7 +79,8 @@ class CubDataset(IDataset):
         if self.transform == 'flip'
         flip_img: A np.ndarray 3*256*256, img after flip
         flip_mask: A np.ndarray 256*256, mask after transformation
-        '''
+        """
+
         ty_idx = type(index)
         if ty_idx != int and ty_idx != list:
             raise TypeError("Invalid type of index")
@@ -92,8 +93,7 @@ class CubDataset(IDataset):
         return res
 
     def get_3d_data(self):
-        '''
-
+        """
         :return: a dict contains info of mean shape:
         A A torch.Tensor 15*3, 3d key_points
         A np.ndarray 15, key_point_indx
@@ -108,7 +108,7 @@ class CubDataset(IDataset):
         A np.ndarray 1001*1001, face_inds
         A np.ndarray 642*2, uv_verts
         A np.array 642*3, sphere_verts
-        '''
-        dic = {'kp3d':self.kp3d, 'kp_perm': self.kp_perm, 'kp_names': self.kp_names, 'kp_uv': self.kp_uv}
+        """
+        dic = {'kp3d': self.kp3d, 'kp_perm': self.kp_perm, 'kp_names': self.kp_names, 'kp_uv': self.kp_uv}
         dic.update(self.mean_shape)
         return dic
