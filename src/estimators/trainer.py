@@ -30,7 +30,6 @@ class ITrainer:
         """
 
         self.config = config
-        self.epochs = config.epochs
 
         self.model = self.get_model()
         self._load_model(config.checkpoint)
@@ -46,10 +45,11 @@ class ITrainer:
         Call this function to start the training
         """
 
-        for epoch in range(self.epochs):
+        for epoch in range(self.config.epochs):
 
-            for i, batch in enumerate(self.data_loader):
-                self._train_step(batch)
+            for step, batch in enumerate(self.data_loader):
+                
+                self._train_step(step, batch)
 
     def _save_model(self, path):
 
@@ -75,7 +75,7 @@ class ITrainer:
             self.model.load_state_dict(torch.load(path))
             print('Loaded model from %s' % path)
 
-    def _train_step(self, batch):
+    def _train_step(self, step, batch):
 
         """
         Optimization step for each batch of data

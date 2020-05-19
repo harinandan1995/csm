@@ -22,7 +22,7 @@ class CSMTrainer(ITrainer):
     def __init__(self, template, config):
 
         """
-        :param template: Poth to the mesh template for the data as an obj file
+        :param template: Path to the mesh template for the data as an obj file
         :param config: A dictionary containing the following parameters
 
         - For the parent class

@@ -140,5 +140,8 @@ cython_debug/
 # Pycharm
 .idea/
 
+# Dataset
+datasets/
+
 # vs code
 .vscode/

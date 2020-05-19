@@ -18,8 +18,9 @@ class UVto3D(nn.Module):
         - verts: A None, 3 tensor of vertex coordinates of the mean shape
         - faces: A None, 3 tensor of faces of the mean shape
         - face_inds: A R X R tensor where each value is the index of the face for
-        the corresponding UV value in uv_map. Eg. if uv_map[25, 75] is (0.2, 0.6) then face_inds[25, 75]
-        stores the index of the face wich corresponds to UV values (0.2, 0.6)
+        the corresponding UV value in uv_map.
+        Eg. if uv_map[25, 75] is (0.2, 0.6) then face_inds[25, 75]
+        stores the index of the face which corresponds to UV values (0.2, 0.6)
         - uv_verts: A None, 2 tensor of UV values of the vertices of the mean shape
         """
 
