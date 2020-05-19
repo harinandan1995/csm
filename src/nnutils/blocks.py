@@ -16,22 +16,42 @@ def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
-def double_conv(in_planes, out_planes, mid_planes=None):
+def double_conv(in_planes, out_planes, mid_planes=None, batch_norm = False):
     """double convonlution layers and keep dimensions"""
-    if mid_planes is None:
-        return nn.Sequential(
-            nn.Conv2d(in_planes, out_planes, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_planes, out_planes, 3, padding=1),
-            nn.ReLU(inplace=True)
-        )
+    if batch_norm is False:
+        if mid_planes is None:
+            return nn.Sequential(
+                nn.Conv2d(in_planes, out_planes, 3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(out_planes, out_planes, 3, padding=1),
+                nn.ReLU(inplace=True)
+            )
+        else:
+            return nn.Sequential(
+                nn.Conv2d(in_planes, mid_planes, 3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(mid_planes, out_planes, 3, padding=1),
+                nn.ReLU(inplace=True)
+            )
     else:
-        return nn.Sequential(
-            nn.Conv2d(in_planes, mid_planes, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(mid_planes, out_planes, 3, padding=1),
-            nn.ReLU(inplace=True)
-        )
+        if mid_planes is None:
+            return nn.Sequential(
+                nn.Conv2d(in_planes, out_planes, 3, padding=1),
+                nn.BatchNorm2d(num_features=out_planes),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(out_planes, out_planes, 3, padding=1),
+                nn.BatchNorm2d(num_features=out_planes),
+                nn.ReLU(inplace=True)
+            )
+        else:
+            return nn.Sequential(
+                nn.Conv2d(in_planes, mid_planes, 3, padding=1),
+                nn.BatchNorm2d(num_features=mid_planes),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(mid_planes, out_planes, 3, padding=1),
+                nn.BatchNorm2d(num_features=out_planes),
+                nn.ReLU(inplace=True)
+            )
 
 
 
