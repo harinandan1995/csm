@@ -26,6 +26,20 @@ FLAGS = flags.FLAGS
 
 
 def main(_):
+    
+    val_dataset = dataset_deform.DeformDataset(
+        
+    )
+    
+    val_dataloader = torch.utils.data.DataLoader(
+        dataset=val_dataset, shuffle=opt.shuffle, batch_size=opt.batch_size, num_workers=num_val_workers, collate_fn=collate_with_padding, pin_memory=True
+    )
+    
+    for i, data in enumerate(train_dataloader):
+        print(data)
+        
+    exit()
+        
 
     seed = FLAGS.seed
     np.random.seed(seed)
