@@ -13,19 +13,19 @@ from src.data import image
 from src.data import transformations
 from src.nnutils.geometry import convert_3d_to_uv_coordinates
 
-flags.DEFINE_integer('img_size', 256, 'image size')
-flags.DEFINE_integer('img_height', 320, 'image height')
-flags.DEFINE_integer('img_width', 512, 'image width')
-flags.DEFINE_enum('split', 'train', ['train', 'val', 'all', 'test'], 'eval split')
-flags.DEFINE_enum('transform', 'flip', ['flip'], 'eval split')
-flags.DEFINE_float('padding_frac', 0.05, 'bbox is increased by this fraction of max_dim')
-flags.DEFINE_float('jitter_frac', 0.05, 'bbox is jittered by this fraction of max_dim')
-flags.DEFINE_boolean('flip', True, 'Allow flip bird left right')
-flags.DEFINE_boolean('tight_crop', False, 'Use Tight crops')
-flags.DEFINE_boolean('flip_train', True, 'Mirror Images while training')
-flags.DEFINE_integer('number_pairs', 10000,
-                     'N random pairs from the test to check if the correspondence transfers.')
-flags.DEFINE_integer('num_kps', 15, 'Number of keypoints')
+# flags.DEFINE_integer('img_size', 256, 'image size')
+# flags.DEFINE_integer('img_height', 320, 'image height')
+# flags.DEFINE_integer('img_width', 512, 'image width')
+# flags.DEFINE_enum('split', 'train', ['train', 'val', 'all', 'test'], 'eval split')
+# flags.DEFINE_enum('transform', 'flip', ['flip'], 'eval split')
+# flags.DEFINE_float('padding_frac', 0.05, 'bbox is increased by this fraction of max_dim')
+# flags.DEFINE_float('jitter_frac', 0.05, 'bbox is jittered by this fraction of max_dim')
+# flags.DEFINE_boolean('flip', True, 'Allow flip bird left right')
+# flags.DEFINE_boolean('tight_crop', False, 'Use Tight crops')
+# flags.DEFINE_boolean('flip_train', True, 'Mirror Images while training')
+# flags.DEFINE_integer('number_pairs', 10000,
+#                      'N random pairs from the test to check if the correspondence transfers.')
+# flags.DEFINE_integer('num_kps', 15, 'Number of keypoints')
 
 
 class IDataset(Dataset):
@@ -34,6 +34,7 @@ class IDataset(Dataset):
     """
 
     def __init__(self, config):
+
         self.config = config
         self.img_size = config.img_size
         self.jitter_frac = config.jitter_frac
@@ -41,8 +42,12 @@ class IDataset(Dataset):
         self.rngFlip = np.random.RandomState(0)
         self.transform = config.transform
         self.device = torch.device('cuda')
+        self.flip = config.flip
+
+        self.kp_3d, self.kp_uv, self.kp_names, self.kp_perm = self.load_key_points()
 
     def __len__(self):
+
         raise NotImplementedError('get_len method should be implemented in the child class')
 
     def __getitem__(self, index):
@@ -81,9 +86,22 @@ class IDataset(Dataset):
 
         return elem
 
-    def get_data(self):
+    def load_key_points(self):
         """
-        Child class must implement this method, data should be a list of dicts with each dict containing the info of all images
+
+        :return: A tuple containing the below values in the same order
+        3D key points (None, 3),
+        UV values for the key points (None, 2)
+        key point names (None),
+        key point permutation (None),
+        """
+
+        return NotImplementedError('Must be implemented by a child class')
+
+    def get_data(self, index):
+        """
+        Child class must implement this method, data should be a list of dictionaries with
+        each containing the info of single image
 
         :return: list of data in expected format
         """
@@ -108,32 +126,24 @@ class IDataset(Dataset):
         np.ndarray 1*4, quaternion
         """
 
-        data = self.anno[index]
-        data_sfm = self.anno_sfm[index]
-        # sfm_pose = (sfm_c, sfm_t, sfm_r)
-        sfm_pose = [np.copy(data_sfm.scale), np.copy(data_sfm.trans), np.copy(data_sfm.rot)]
-        sfm_rot = np.pad(sfm_pose[2], (0, 1), 'constant')
-        sfm_rot[3, 3] = 1
-        sfm_pose[2] = transformations.quaternion_from_matrix(sfm_rot, isprecise=True)
-        img_path = osp.join(self.img_dir, str(data.rel_path))
+        bbox, mask, parts, sfm_pose, img_path = self.get_data(index)
+
         img = imageio.imread(img_path) / 255.0
         # Some are grayscale:
         if len(img.shape) == 2:
             img = np.repeat(np.expand_dims(img, 2), 3, axis=2)
-        mask = np.expand_dims(data.mask, 2)
+        mask = np.expand_dims(mask, 2)
 
         # Adjust to 0 indexing
-        bbox = np.array(
-            [data.bbox.x1, data.bbox.y1, data.bbox.x2, data.bbox.y2],
-            float) - 1
+        bbox = np.array([bbox.x1, bbox.y1, bbox.x2, bbox.y2], float) - 1
 
-        parts = data.parts.T.astype(float)
+        # parts = data.parts.T.astype(float)
         kp = np.copy(parts)
         vis = kp[:, 2] > 0
         kp[vis, :2] -= 1
         kp_uv = self.kp_uv.clone()
-        # Peturb bbox
 
+        # Peturb bbox
         if self.config.tight_crop:
             self.padding_frac = 0.0
 
@@ -359,8 +369,8 @@ class IDataset(Dataset):
         :param verts_sphere: A np.ndarray 642*3, vertexs of mesh sphere
         :return:kp_uv: A torch.Tensor 15*2, projected key points in uv coordinate
         """
-        vert = torch.Tensor(verts).unsqueeze(dim=0).to(self.device)
-        face = torch.Tensor(faces).unsqueeze(dim=0).to(self.device)
+        vert = torch.tensor(verts).unsqueeze(dim=0).to(self.device)
+        face = torch.tensor(faces).unsqueeze(dim=0).to(self.device)
         mesh = Meshes(vert, face)
         tp = torch.unsqueeze(kp3d, dim=0)
         ep = Pointclouds(tp)
