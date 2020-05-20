@@ -1,9 +1,11 @@
+from typing import Tuple
+
 import numpy as np
+import pytorch3d
 import torch
 import torch.nn as nn
-
 from pytorch3d.renderer import (
-    OpenGLPerspectiveCameras, look_at_view_transform, RasterizationSettings, MeshRenderer, MeshRasterizer, BlendParams,
+    look_at_view_transform, RasterizationSettings, MeshRenderer, MeshRasterizer, BlendParams,
     SoftSilhouetteShader, HardPhongShader, OpenGLOrthographicCameras,
     PointLights
 )
@@ -15,6 +17,44 @@ from pytorch3d.renderer import (
 3. option: quaternions 
 4. option: (euler angles etc. )
 """
+
+
+class Renderer(nn.Module):
+    """Pytorch Module combining the mask and the depth renderer."""
+
+    def __init__(self, device, image_size=256):
+        """
+        Initialization of the Renderer Class. Instances of the mask and depth renderer are create on corresponding device.
+
+
+        :param device: The device, on which the computation is done.
+        :param image_size: Image size for the rasterization. Default is 256.
+        """
+        self.mask_renderer = MaskRenderer(device, image_size)
+        self.depth_renderer = DepthRenderer(device, image_size)
+
+    def forward(self, meshes: pytorch3d.structures.Meshes, distance: float, elevation: float, azimuth: float,
+                camera_params: object = None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Combines the forward functions of mask and depth renderer. Argument are equal to both renderers parameters.
+
+        :param meshes: A batch of meshes. pytorch3d.structures.Meshes. Dimension meshes \in R^N.
+                        View https://github.com/facebookresearch/pytorch3d/blob/master/pytorch3d/structures/meshes.py
+                        for additional information.
+        :param distance: distance of the camera from the object
+        :param elevation: angle in degrees or radians. This is the angle between the
+            vector from the object to the camera, and the horizontal plane y = 0 (xz-plane).
+        :param azimuth: angle in degrees or radians. The vector from the object to
+            the camera is projected onto a horizontal plane y = 0.
+            azimuth is the angle between the projected vector and a
+            reference vector at (1, 0, 0) on the reference plane (the horizontal plane).
+        :param camera_params: placeholder for potential capsuling of the camera params.
+        :return: Tuple with [N X W X H] / [N X W X H X C] tensor.
+                with N = batch size, W = width of image, H = height of image, C = Channels. usually W=H.
+        """
+        image, depth_maps = self.depth_renderer(meshes, distance, elevation, azimuth)
+        masks = self.mask_renderer(meshes, distance, elevation, azimuth)
+        return image, depth_maps, masks
 
 
 class MaskRenderer(nn.Module):
