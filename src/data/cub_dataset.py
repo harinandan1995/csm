@@ -4,7 +4,6 @@ import numpy as np
 import scipy.io as sio
 import torch
 import torch.utils.data
-from absl import flags
 
 from src.data import transformations
 from src.data.dataset import IDataset
@@ -123,22 +122,22 @@ class CubDataset(IDataset):
             res.append(dic)
         return res
 
-    def get_3d_data(self):
+    def get_3d_data(self,device = "cuda"):
         """
         :return: a dict contains info of mean shape:
-        A A torch.Tensor 15*3, 3d key_points
-        A np.ndarray 15, key_point_indx
+        A torch.Tensor 15*3, 3d key_points
+        A torch.Tensor 15, key_point_indx
         A list 15, key_point names
-        A torch.Tensor 15*2,projected in uv-cordinate key_points
-        A np.ndarray 1001*1001*3, bary_cord
-        A np.ndarray 144*3, conv_tri
-        A np.ndarray 1001*1001*2, uv_map
-        A np.ndarray 15*3, (3d key_points)S
-        A np.ndarray 642*3, verts
-        A np.ndarray 1280*3, faces
-        A np.ndarray 1001*1001, face_inds
-        A np.ndarray 642*2, uv_verts
-        A np.array 642*3, sphere_verts
+        A np.ndarray 15*2,projected in uv-cordinate key_points
+        A torch.Tensor 1001*1001*3, bary_cord
+        A torch.Tensor 144*3, conv_tri
+        A torch.Tensor 1001*1001*2, uv_map
+        A torch.Tensor 15*3, (3d key_points)S
+        A torch.Tensor 642*3, verts
+        A torch.Tensor 1280*3, faces
+        A torch.Tensor 1001*1001, face_inds
+        A torch.Tensor 642*2, uv_verts
+        A torch.Tensor 642*3, sphere_verts
         """
         dic = {
             'kp3d': self.kp_3d,
@@ -146,6 +145,9 @@ class CubDataset(IDataset):
             'kp_names': self.kp_names,
             'kp_uv': self.kp_uv
         }
+        for i in self.mean_shape:
+            if type(self.mean_shape[i]) == np.ndarray:
+                self.mean_shape[i] = torch.from_numpy(self.mean_shape[i]).float().to(device)
         dic.update(self.mean_shape)
 
         return dic

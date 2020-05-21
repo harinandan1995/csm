@@ -55,7 +55,7 @@ class IDataset(Dataset):
         :param index: the index of image
         :return: a dict contains info of the given index image
         img: A np.ndarray 3*256*256, index given image after crop and mirror (if train)
-        kp_uv: A torch.Tensor 15*2， key points in uv coordinate
+        kp_uv: A np.ndarray 15*2， key points in uv coordinate
         mask: A np.ndarray 256*256, mask after transformation
         sfm_pose: sfm_pose after transformation
         np.ndarray 1, scale,
@@ -86,22 +86,9 @@ class IDataset(Dataset):
 
         return elem
 
-    def load_key_points(self):
+    def get_data(self):
         """
-
-        :return: A tuple containing the below values in the same order
-        3D key points (None, 3),
-        UV values for the key points (None, 2)
-        key point names (None),
-        key point permutation (None),
-        """
-
-        return NotImplementedError('Must be implemented by a child class')
-
-    def get_data(self, index):
-        """
-        Child class must implement this method, data should be a list of dictionaries with
-        each containing the info of single image
+        Child class must implement this method, data should be a list of dicts with each dict containing the info of all images
 
         :return: list of data in expected format
         """
@@ -118,7 +105,7 @@ class IDataset(Dataset):
         :return:
         img: A np.ndarray 3*256*256, index given image after crop and mirror (if train)
         kp_norm: A np.ndarray 15*3 , key points after transformation and normalization
-        kp_uv: A torch.Tensor 15*2， key points in uv coordinate
+        kp_uv: A np.ndarray 15*2， key points in uv coordinate
         mask: A np.ndarray 256*256, mask after transformation
         sfm_pose: sfm_pose after transformation
         float, scale,
@@ -126,24 +113,32 @@ class IDataset(Dataset):
         np.ndarray 1*4, quaternion
         """
 
-        bbox, mask, parts, sfm_pose, img_path = self.get_data(index)
-
+        data = self.anno[index]
+        data_sfm = self.anno_sfm[index]
+        # sfm_pose = (sfm_c, sfm_t, sfm_r)
+        sfm_pose = [np.copy(data_sfm.scale), np.copy(data_sfm.trans), np.copy(data_sfm.rot)]
+        sfm_rot = np.pad(sfm_pose[2], (0, 1), 'constant')
+        sfm_rot[3, 3] = 1
+        sfm_pose[2] = transformations.quaternion_from_matrix(sfm_rot, isprecise=True)
+        img_path = osp.join(self.img_dir, str(data.rel_path))
         img = imageio.imread(img_path) / 255.0
         # Some are grayscale:
         if len(img.shape) == 2:
             img = np.repeat(np.expand_dims(img, 2), 3, axis=2)
-        mask = np.expand_dims(mask, 2)
+        mask = np.expand_dims(data.mask, 2)
 
         # Adjust to 0 indexing
-        bbox = np.array([bbox.x1, bbox.y1, bbox.x2, bbox.y2], float) - 1
+        bbox = np.array(
+            [data.bbox.x1, data.bbox.y1, data.bbox.x2, data.bbox.y2],
+            float) - 1
 
-        # parts = data.parts.T.astype(float)
+        parts = data.parts.T.astype(float)
         kp = np.copy(parts)
         vis = kp[:, 2] > 0
         kp[vis, :2] -= 1
-        kp_uv = self.kp_uv.clone()
-
+        kp_uv = self.kp_uv.copy()
         # Peturb bbox
+
         if self.config.tight_crop:
             self.padding_frac = 0.0
 
@@ -294,7 +289,7 @@ class IDataset(Dataset):
         :param img: A np.ndarray 256*256*3
         :param mask: A np.ndarray 256*256
         :param kp: A np.ndarray 15*3 , key points
-        :param kp_uv: A torch.Tensor 15*2, key points in uv_coordinate
+        :param kp_uv: A np.ndarray 15*2, key points in uv_coordinate
         :param sfm_pose: sfm_pose after crop
         float, scale,
         np.ndarray 1*2, trans
@@ -367,10 +362,10 @@ class IDataset(Dataset):
         :param faces: A np.ndarray 1280*3 ,faces of mesh
         :param verts: A np.ndarray 642*3 ,vertexs of mesh
         :param verts_sphere: A np.ndarray 642*3, vertexs of mesh sphere
-        :return:kp_uv: A torch.Tensor 15*2, projected key points in uv coordinate
+        :return:kp_uv: A np.ndarray 15*2, projected key points in uv coordinate
         """
-        vert = torch.tensor(verts).unsqueeze(dim=0).to(self.device)
-        face = torch.tensor(faces).unsqueeze(dim=0).to(self.device)
+        vert = torch.Tensor(verts).unsqueeze(dim=0).to(self.device)
+        face = torch.Tensor(faces).unsqueeze(dim=0).to(self.device)
         mesh = Meshes(vert, face)
         tp = torch.unsqueeze(kp3d, dim=0)
         ep = Pointclouds(tp)
@@ -404,4 +399,4 @@ class IDataset(Dataset):
         dist_to_verts = np.square(kpc[:, None, :] - verts[None, :, :]).sum(-1)
         min_inds = np.argmin(dist_to_verts, axis=1)
         kp_verts_sphere = verts_sphere[min_inds]
-        return kp_uv
+        return kp_uv.cpu().numpy()
