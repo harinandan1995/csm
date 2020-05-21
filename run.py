@@ -26,6 +26,8 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
 
+    print(torch.cuda.current_device())
+    print(torch.cuda.get_device_name())
     config = ConfigParser('./config/train.yml', None).config
     dataset = CubDataset(config.dataset)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=False)

@@ -47,8 +47,6 @@ class ConfigParser:
         with open(self.config_file) as file:
             self.config_dict = yaml.load(file, Loader=yaml.FullLoader)
 
-        print(self.config_dict)
-
         self.config = self._create_config_object(self.config_dict)
 
     def _create_config_object(self, config_dict):

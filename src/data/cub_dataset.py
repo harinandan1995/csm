@@ -9,13 +9,6 @@ from src.data import transformations
 from src.data.dataset import IDataset
 from src.utils.utils import validate_paths
 
-# curr_path = osp.dirname(osp.abspath(__file__))
-# cache_path = osp.join(curr_path, '..', 'cachedir')
-# cub_path = osp.join(curr_path, '..', 'CUB_200_2011')
-#
-# flags.DEFINE_string('cub_cache_dir', osp.join(cache_path, 'cub'), 'CUB Data Directory')
-# flags.DEFINE_string('cub_dir', cub_path, 'CUB Data Directory')
-
 
 class CubDataset(IDataset):
 
@@ -91,7 +84,7 @@ class CubDataset(IDataset):
         sfm_pose[2] = transformations.quaternion_from_matrix(sfm_rot, isprecise=True)
         parts = data.parts.T.astype(float)
 
-        return data, data.bbox, data.mask, data.parts.T.astype(float), sfm_pose, img_path
+        return data.bbox, data.mask, parts, sfm_pose, img_path
 
     def get_img_data(self, index):
         """
@@ -122,7 +115,7 @@ class CubDataset(IDataset):
             res.append(dic)
         return res
 
-    def get_3d_data(self,device = "cuda"):
+    def get_3d_data(self, device="cuda"):
         """
         :return: a dict contains info of mean shape:
         A torch.Tensor 15*3, 3d key_points
