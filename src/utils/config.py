@@ -7,15 +7,24 @@ class ConfigParser:
     """
     A parser to parse the config files. The parameters can be accessed as attributes
     Eg. For the below config.yml file
-    batch_size: 8
-    epochs: 100
-    optim:
-      lr: 0.0004
-      type: 'adam'
+    
+    train:
+        batch_size: 8
+        epochs: 100
+        optim:
+            lr: 0.0004
+            type: 'adam'
 
-    learning rate can be accessed as config.optim.lr which is not possible
-    with a standard dictionary.
-    Representations such as 1e-4 are considered as strings
+    config = ConfigParser('config/train.yml', None).config
+    
+    You can access the parameters form the config file as shown below
+    config.train.optim
+    config.train.optim.lr
+    config.train.batch_size
+
+    which is not possible with a standard python dictionary.
+    
+    Note: Values such as 1e-4 are considered as strings instead of float
     """
 
     class ConfigObject(dict):
@@ -47,8 +56,6 @@ class ConfigParser:
         with open(self.config_file) as file:
             self.config_dict = yaml.load(file, Loader=yaml.FullLoader)
 
-        print(self.config_dict)
-
         self.config = self._create_config_object(self.config_dict)
 
     def _create_config_object(self, config_dict):
@@ -62,7 +69,6 @@ class ConfigParser:
             return config_dict
 
     def _check_files(self):
-
         """
         Checks if the config and schema files exist
         """
@@ -72,11 +78,3 @@ class ConfigParser:
 
         if self.schema is not None and not os.path.exists(self.schema):
             return FileNotFoundError('%s file does not exist' % self.schema)
-
-
-if __name__ == '__main__':
-
-    config = ConfigParser('config/train.yml', 'config/train.yml').config
-    print(config.optim)
-    print(config.optim.lr + 1.0)
-    print(config.batch_size)

@@ -1,7 +1,11 @@
 import argparse
-from src.scripts.train import start_train
-from src.scripts.test import start_test
 
+import torch.utils.data
+
+from src.data.cub_dataset import CubDataset
+from src.scripts.test import start_test
+from src.scripts.train import start_train
+from src.utils.config import ConfigParser
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-m', '--mode',
@@ -22,9 +26,19 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
 
+    print(torch.cuda.current_device())
+    print(torch.cuda.get_device_name())
+    config = ConfigParser('./config/train.yml', None).config
+    dataset = CubDataset(config.dataset)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=False)
+
+    for data in dataloader:
+        print(data)
+        break
+
     if args.mode == 'train':
         print('Starting the training........')
-        start_train(args.config)
+        # start_train(args.config)
     else:
         print('Starting the testing........')
-        start_test(args.config)
+        # start_test(args.config)

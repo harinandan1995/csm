@@ -1,5 +1,35 @@
-batch_size: 8
-epochs: 100
-optim:
-  lr: 0.0004
-  type: 'adam'
+dataset:
+  img_size: 256
+  img_height: 320
+  img_width: 512
+  split: 'train'
+  transform: 'flip'
+  padding_frac: 0.05
+  jitter_frac: 0.05
+  flip: True
+  tight_crop: False
+  flip_train: True
+  num_pairs: 10000
+  num_kps: 15
+
+  dir:
+    data_dir: './datasets/CUB_200_2011'
+    cache_dir: './datasets/cachedir/cub'
+
+  dataloader:
+    dataset: 'cub'
+    seed: 0
+    batch_size: 64
+    n_data_workers: 2
+
+train:
+  batch_size: 8
+  epochs: 100
+  shuffle: True
+  workers: 16
+  checkpoint: ''
+  out_dir: './out'
+  optim:
+    lr: 0.0004
+    beta1: 0.99
+    type: 'adam'
