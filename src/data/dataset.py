@@ -1,15 +1,14 @@
 import cv2
 import imageio
 import numpy as np
-import torch
-from pytorch3d import _C
-from pytorch3d.loss.point_mesh_distance import point_face_distance
-from pytorch3d.structures import Meshes, Pointclouds
+
+import trimesh
 from torch.utils.data import Dataset
 
 from src.data import image
 from src.data import transformations
 from src.nnutils.geometry import convert_3d_to_uv_coordinates
+
 
 
 class IDataset(Dataset):
@@ -25,10 +24,7 @@ class IDataset(Dataset):
         self.padding_frac = config.padding_frac
         self.rngFlip = np.random.RandomState(0)
         self.transform = config.transform
-        self.device = torch.device('cuda')
         self.flip = config.flip
-
-        self.kp_3d, self.kp_uv, self.kp_names, self.kp_perm = self.load_key_points()
 
     def __len__(self):
 
@@ -39,6 +35,7 @@ class IDataset(Dataset):
         :param index: the index of image
         :return: a dict contains info of the given index image
         img: A np.ndarray 3*256*256, index given image after crop and mirror (if train)
+        kp: A np.ndarray 15*3, key points
         kp_uv: A np.ndarray 15*2， key points in uv coordinate
         mask: A np.ndarray 256*256, mask after transformation
         sfm_pose: sfm_pose after transformation
@@ -67,7 +64,6 @@ class IDataset(Dataset):
             elem['flip_img'] = flip_img
             flip_mask = mask[:, ::-1].copy()
             elem['flip_mask'] = flip_mask
-
         return elem
 
     def load_key_points(self):
@@ -162,7 +158,6 @@ class IDataset(Dataset):
 
         # Finally transpose the image to 3xHxW
         img = np.transpose(img, (2, 0, 1))
-
         return img, kp_norm, kp_uv, mask, sfm_pose
 
     @staticmethod
@@ -313,6 +308,7 @@ class IDataset(Dataset):
             # Flip tx
             tx = img.shape[1] - sfm_pose[1][0] - 1
             sfm_pose[1][0] = tx
+
             return img_flip, mask_flip, kp_flip, kp_uv_flip, sfm_pose
         else:
             return img, mask, kp, kp_uv, sfm_pose
@@ -348,46 +344,14 @@ class IDataset(Dataset):
         """
         Project 3d key points to closest point on mesh and projected in uv_coordinate
 
-        :param kp3d: A torch.Tensor 15*3, 3d key points
-        :param faces: A np.ndarray 1280*3 ,faces of mesh
-        :param verts: A np.ndarray 642*3 ,vertexs of mesh
+        :param kp3d: A np.ndarray 15*3, 3d key points
+        :param faces: A np.ndarray F*3 ,faces of mesh; F - number of faces
+        :param verts: A np.ndarray V*3 ,vertexs of mesh; V - number of vertices
         :param verts_sphere: A np.ndarray 642*3, vertexs of mesh sphere
         :return:kp_uv: A np.ndarray 15*2, projected key points in uv coordinate
         """
-        vert = torch.tensor(verts).unsqueeze(dim=0).to(self.device)
-        face = torch.tensor(faces).unsqueeze(dim=0).to(self.device)
-        mesh = Meshes(vert, face)
-        tp = torch.unsqueeze(kp3d, dim=0)
-        ep = Pointclouds(tp)
-        points = ep.points_packed().to(self.device)  # (P, 3)
-        points_first_idx = ep.cloud_to_packed_first_idx().to(self.device)
-        max_points = ep.num_points_per_cloud().max().item()
+        mesh = trimesh.Trimesh(verts, faces)
+        closest_point = trimesh.proximity.closest_point(mesh, kp3d)
+        kp_uv = convert_3d_to_uv_coordinates(closest_point[0])
+        return kp_uv
 
-        # packed representation for faces
-        verts_packed = mesh.verts_packed()
-        faces_packed = mesh.faces_packed()
-        tris = verts_packed[faces_packed].to(self.device)  # (T, 3, 3)
-        tris_first_idx = mesh.mesh_to_faces_packed_first_idx().long().to(self.device)
-        max_tris = mesh.num_faces_per_mesh().max().item()
-
-        dists, idxs = _C.point_face_dist_forward(
-            points, points_first_idx, tris, tris_first_idx, max_tris
-        )
-        nfaces = verts_packed[faces_packed[idxs]]
-        V = nfaces[:, 1] - nfaces[:, 0]
-        W = nfaces[:, 2] - nfaces[:, 0]
-        nx = V[:, 1] * W[:, 2] - V[:, 2] * W[:, 1]
-        ny = V[:, 2] * W[:, 0] - V[:, 0] * W[:, 2]
-        nz = V[:, 0] * W[:, 1] - V[:, 1] * W[:, 0]
-        nz = V[:, 0] * W[:, 1] - V[:, 1] * W[:, 0]
-        nx = nx.reshape(15, 1)
-        ny = ny.reshape(15, 1)
-        nz = nz.reshape(15, 1)
-        n = torch.cat((nx, ny, nz), 1)
-        np0 = kp3d + dists.reshape(15, 1) * n
-        kp_uv = convert_3d_to_uv_coordinates(np0)
-        kpc = kp3d.cpu().numpy()
-        dist_to_verts = np.square(kpc[:, None, :] - verts[None, :, :]).sum(-1)
-        min_inds = np.argmin(dist_to_verts, axis=1)
-        kp_verts_sphere = verts_sphere[min_inds]
-        return kp_uv.cpu().numpy()

@@ -13,14 +13,13 @@ dataset:
   num_kps: 15
 
   dir:
-    data_dir: './datasets/CUB_200_2011'
-    cache_dir: './datasets/cachedir/cub'
+    data_dir: '.\datasets\CUB_200_2011'
+    cache_dir: '.\datasets\cachedir\cub'
 
   dataloader:
     dataset: 'cub'
-    seed: 0
     batch_size: 64
-    n_data_workers: 2
+
 
 train:
   batch_size: 8

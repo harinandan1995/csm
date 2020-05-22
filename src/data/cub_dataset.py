@@ -2,8 +2,6 @@ import os.path as osp
 
 import numpy as np
 import scipy.io as sio
-import torch
-import torch.utils.data
 
 from src.data import transformations
 from src.data.dataset import IDataset
@@ -24,7 +22,7 @@ class CubDataset(IDataset):
         self.anno_sfm = []
         self.mean_shape = {}
         self.num_samples = 0
-
+        self.kp_3d, self.kp_uv, self.kp_names,self.kp_perm = self.load_key_points()
         self.load_data()
 
     def __len__(self):
@@ -44,7 +42,6 @@ class CubDataset(IDataset):
         validate_paths(anno_train_sfm_path)
 
         kp_3d = sio.loadmat(anno_train_sfm_path, struct_as_record=False, squeeze_me=True)['S'].transpose().copy()
-        kp_3d = torch.tensor(kp_3d)
 
         self.mean_shape = sio.loadmat(osp.join(self.cache_dir, 'uv', 'mean_shape.mat'))
         kp_uv = self.preprocess_to_find_kp_uv(
@@ -91,7 +88,7 @@ class CubDataset(IDataset):
         :param index: the index of image
         :return: A list of dicts of  contains info of the given index image
         img: A np.ndarray 3*256*256, index given image after crop and mirror (if train)
-        kp_uv: A torch.Tensor 15*2， key points in uv coordinate
+        kp_uv: A np.ndarray  15*2， key points in uv coordinate
         mask: A np.ndarray 256*256, mask after transformation
         sfm_pose: sfm_pose after transformation
         float, scale,
@@ -115,22 +112,25 @@ class CubDataset(IDataset):
             res.append(dic)
         return res
 
-    def get_3d_data(self, device="cuda"):
+
+    def get_3d_data(self):
         """
         :return: a dict contains info of mean shape:
-        A torch.Tensor 15*3, 3d key_points
-        A torch.Tensor 15, key_point_indx
+        A np.ndarray  15*3, 3d key_points
+        A np.ndarray  15, key_point_indx
         A list 15, key_point names
         A np.ndarray 15*2,projected in uv-cordinate key_points
-        A torch.Tensor 1001*1001*3, bary_cord
-        A torch.Tensor 144*3, conv_tri
-        A torch.Tensor 1001*1001*2, uv_map
-        A torch.Tensor 15*3, (3d key_points)S
-        A torch.Tensor 642*3, verts
-        A torch.Tensor 1280*3, faces
-        A torch.Tensor 1001*1001, face_inds
-        A torch.Tensor 642*2, uv_verts
-        A torch.Tensor 642*3, sphere_verts
+        A np.ndarray  1001*1001*3, bary_cord
+        A np.ndarray  144*3, conv_tri
+        A np.ndarray  1001*1001*2, uv_map
+        A np.ndarray  15*3, (3d key_points)S
+        A np.ndarray  V*3, verts
+        A np.ndarray  F*3, faces
+        A np.ndarray  1001*1001, face_inds
+        A np.ndarray  V*2, uv_verts
+        A np.ndarray  V*3, sphere_verts
+        F - number of faces
+        V - number of vertices
         """
         dic = {
             'kp3d': self.kp_3d,
@@ -138,9 +138,6 @@ class CubDataset(IDataset):
             'kp_names': self.kp_names,
             'kp_uv': self.kp_uv
         }
-        for i in self.mean_shape:
-            if type(self.mean_shape[i]) == np.ndarray:
-                self.mean_shape[i] = torch.from_numpy(self.mean_shape[i]).float().to(device)
         dic.update(self.mean_shape)
 
         return dic
