@@ -2,7 +2,7 @@ import torch.utils.data
 import trimesh
 
 from src.estimators.trainer import ITrainer
-from src.nnutils.geometry import *
+from src.nnutils.geometry import get_gt_positions_grid
 from src.nnutils.losses import *
 
 
@@ -19,23 +19,23 @@ class CSMTrainer(ITrainer):
 
     """
 
-    def __init__(self, template, config):
+    def __init__(self, template, dataset, model, config):
 
         """
         :param template: Path to the mesh template for the data as an obj file
         :param config: A dictionary containing the following parameters
 
-        - For the parent class
-        epochs: Number of epochs for the training
-        checkpoint: Path to a checkpoint to pre load a model. None if no weights are to be loaded.
-        optim.type: Type of the optimizer to the used during the training. Allowed values are 'adam' and 'sgd'
-        optim.lr: Learning rate for the optimizer
-        optim.beta1: Beta1 value for the optimizer
-        - For the CSMTrainer
-        img_size: A tuple (W, H) containing the width and height of the image
-        batch_size: Batch size to be used in the dataloader
-        shuffle: True or False. True if you want to shuffle the data during the training
-        workers: Number of workers to be used for the data processing
+        {
+            epochs: Number of epochs for the training
+            checkpoint: Path to a checkpoint to pre load a model. None if no weights are to be loaded.
+            optim.type: Type of the optimizer to the used during the training. Allowed values are 'adam' and 'sgd'
+            optim.lr: Learning rate for the optimizer
+            optim.beta1: Beta1 value for the optimizer
+            out_dir: Path to the directory where the summaries and the checkpoints should be stored
+            batch_size: Batch size to be used in the dataloader
+            shuffle: True or False. True if you want to shuffle the data during the training
+            workers: Number of workers to be used for the data processing
+        }
         """
 
         super(CSMTrainer, self).__init__(config)
@@ -44,8 +44,10 @@ class CSMTrainer(ITrainer):
         self.summary_writer.add_mesh('Template', self.mesh['vertices'], faces=self.mesh['faces'])
         self.gt_2d_pos_grid = get_gt_positions_grid(config.image_size)
 
-    def calculate_loss(self, batch):
+        self.dataset = dataset
+        self.model = model
 
+    def _calculate_loss(self, batch):
         """
         Calculates the total loss for the batch which is a combination of the
         - Geometric cycle consistency loss
@@ -85,15 +87,15 @@ class CSMTrainer(ITrainer):
 
         return loss
 
-    def get_data_loader(self):
+    def _get_data_loader(self):
 
         # TODO: Add the corresponding dataset once its implemented
 
         return torch.utils.data.DataLoader(
-            None, batch_size=self.config.batch_size,
+            self.dataset, batch_size=self.config.batch_size,
             shuffle=self.config.shuffle, num_workers=self.config.workers)
 
-    def get_model(self):
+    def _get_model(self):
 
         """
         Returns a torch model which takes image(B X W X H) and mask (B X W X H) and returns a
@@ -113,4 +115,4 @@ class CSMTrainer(ITrainer):
         """
 
         # TODO: Write the code to get the actual model once the model is implemented
-        return "None"
+        return self.model
