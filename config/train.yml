@@ -13,8 +13,8 @@ dataset:
   num_kps: 15
 
   dir:
-    data_dir: '.\datasets\CUB_200_2011'
-    cache_dir: '.\datasets\cachedir\cub'
+    data_dir: './datasets/CUB_200_2011'
+    cache_dir: './datasets/cachedir/cub'
 
   dataloader:
     dataset: 'cub'
