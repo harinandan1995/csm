@@ -1,4 +1,3 @@
-import os
 import os.path as osp
 
 import torch
@@ -28,6 +27,7 @@ class ITrainer:
         optim.lr: Learning rate for the optimizer
         optim.beta1: Beta1 value for the optimizer
         out_dir: Path to the directory where the summaries and the checkpoints should be stored
+            the summaries are stored in out_dir/summaries/{date}/{timestamp}/.
         """
 
         self.config = config
@@ -39,8 +39,6 @@ class ITrainer:
         self.optimizer = self._get_optimizer(config)
 
         self.summary_dir = osp.join(self.config.out_dir, 'summaries', get_date, get_time)
-        self.checkpoint_dir = osp.join(self.config.out_dir, 'checkpoints', get_date, get_time)
-
         self.summary_writer = SummaryWriter(self.summary_dir)
 
     def train(self):
@@ -52,18 +50,22 @@ class ITrainer:
 
             running_loss = 0
 
+            self._epoch_start_call(epoch, self.config.epochs)
+
             for step, batch in enumerate(self.data_loader):
+                
+                self._batch_start_call(batch, step, len(self.data_loader), epoch, self.config.epochs)
                 
                 loss = self._train_step(step, batch)
                 running_loss += loss.item()
-                self._print_load_metrics(loss, step, len(self.data_loader), epoch, self.config.epochs)
+                
+                self._batch_end_call(batch, loss, step, len(self.data_loader), 
+                                     epoch, self.config.epochs)
             
             epoch_loss = running_loss / len(self.data_loader)
-            
             self.summary_writer.add_scalar('Loss/train', epoch_loss, epoch)
-            self._add_summaries(epoch, self.config.epochs)
-
-            self._save_model(osp.join(self.checkpoint_dir, 'model_%s_%d' % (get_time, epoch)))
+            
+            self._epoch_end_call(epoch, self.config.epochs)            
 
     def _save_model(self, path):
         """
@@ -83,7 +85,7 @@ class ITrainer:
         :param path: Path to the checkpoint file to preload the weights before the training starts
         """
 
-        if path is not None and path != '' and os.path.exists(path):
+        if path is not None and path != '' and osp.exists(path):
             self.model.load_state_dict(torch.load(path))
             print('Loaded model from %s' % path)
 
@@ -147,13 +149,30 @@ class ITrainer:
 
         return NotImplementedError
 
-    def _print_load_metrics(self, loss, step, total_steps, epoch, total_epochs):
+    def _batch_start_call(self, batch, step, total_steps, epoch, total_epochs):
         """
+        This function will be called before each optimizin the model for the batch
+
+        :param batch: Batch data
+        :param step: Current batch number
+        :type step: Int
+        :param total_steps: Total number of batches
+        :type total_steps: Int
+        :param epoch: Current epoch
+        :type epoch: Int
+        :param total_epochs: Total number of epochs
+        :type total_epochs: Int
+        """
+
+        return
+    
+    def _batch_end_call(self, batch, loss, step, total_steps, epoch, total_epochs):
+        """
+        This function will be called after each batch has been used for optimization
         Use this function to print and/or load any metrics after each 
         batch has been processed
 
-        This function will be called after each batch has been used for optimization
-
+        :param batch: Batch data
         :param loss: Loss calcuated for the batch
         :param type: FloatTensor
         :param step: Current batch number
@@ -168,10 +187,26 @@ class ITrainer:
 
         return
     
-    def _add_summaries(self, epoch, total_epochs):
+    def _epoch_start_call(self, epoch, total_epochs):
         """
-        Use this function to write any summaries to the 
-        summary writer (self.summary_writer)
+        This function is called at the begining of the each epoch
+        Use this function to do anything before the start of each epoch
+
+        :param epoch: Current epoch
+        :type epoch: Int
+        :param total_epochs: Total epochs
+        :type total_epochs: Int
+        """
+        
+        return
+
+    def _epoch_end_call(self, epoch, total_epochs):
+        """
+        This function is called at the end of the each epoch
+        Use this function to do anything at the end of each epoch 
+        Eg.
+        - write any summaries to the summary writer (self.summary_writer)
+        - save model checkpoints
 
         :param epoch: Current epoch
         :type epoch: Int

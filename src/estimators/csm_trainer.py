@@ -1,13 +1,15 @@
+import os.path as osp
+
 import torch.utils.data
 import trimesh
 
 from src.estimators.trainer import ITrainer
 from src.nnutils.geometry import get_gt_positions_grid
 from src.nnutils.losses import *
+from src.utils.utils import get_date, get_time
 
 
 class CSMTrainer(ITrainer):
-
     """
     A trainer for the Canonical Surface Mapping problem
     The following notations are used in the documentation
@@ -19,8 +21,7 @@ class CSMTrainer(ITrainer):
 
     """
 
-    def __init__(self, template, dataset, model, config):
-
+    def __init__(self, template, config):
         """
         :param template: Path to the mesh template for the data as an obj file
         :param config: A dictionary containing the following parameters
@@ -38,14 +39,13 @@ class CSMTrainer(ITrainer):
         }
         """
 
-        super(CSMTrainer, self).__init__(config)
+        super(CSMTrainer, self).__init__(config.train)
 
         self.mesh = trimesh.load(template, 'obj')
         self.summary_writer.add_mesh('Template', self.mesh['vertices'], faces=self.mesh['faces'])
-        self.gt_2d_pos_grid = get_gt_positions_grid(config.image_size)
+        self.gt_2d_pos_grid = get_gt_positions_grid(config.dataset.image_size)
 
-        self.dataset = dataset
-        self.model = model
+        self.checkpoint_dir = osp.join(self.config.out_dir, 'checkpoints', get_date, get_time)
 
     def _calculate_loss(self, batch):
         """
@@ -87,16 +87,19 @@ class CSMTrainer(ITrainer):
 
         return loss
 
+    def _epoch_end_call(self, current_epoch, total_epochs):
+        
+        # Save checkpoint after every 10 epochs
+        if current_epoch % 10 == 0:
+            self._save_model(osp.join(self.checkpoint_dir, 'model_%s_%d' % (get_time, epoch)))
+
     def _get_data_loader(self):
 
-        # TODO: Add the corresponding dataset once its implemented
-
         return torch.utils.data.DataLoader(
-            self.dataset, batch_size=self.config.batch_size,
+            None, batch_size=self.config.batch_size,
             shuffle=self.config.shuffle, num_workers=self.config.workers)
 
     def _get_model(self):
-
         """
         Returns a torch model which takes image(B X W X H) and mask (B X W X H) and returns a
         dictionary containing the following parameters
@@ -115,4 +118,4 @@ class CSMTrainer(ITrainer):
         """
 
         # TODO: Write the code to get the actual model once the model is implemented
-        return self.model
+        return None
