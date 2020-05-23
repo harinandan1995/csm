@@ -6,6 +6,7 @@ import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
@@ -16,8 +17,9 @@ def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
-def double_conv(in_planes, out_planes, mid_planes=None, batch_norm = False):
-    """double convonlution layers and keep dimensions"""
+
+def double_conv(in_planes, out_planes, mid_planes=None, batch_norm=False):
+    """double convolution layers and keep dimensions"""
     if batch_norm is False:
         if mid_planes is None:
             return nn.Sequential(
@@ -54,7 +56,6 @@ def double_conv(in_planes, out_planes, mid_planes=None, batch_norm = False):
             )
 
 
-
 class ResNetConv(nn.Module):
     """resnet18 architecture with n blocks"""
 
@@ -80,4 +81,3 @@ class ResNetConv(nn.Module):
             x = self.resnet.layer4(x)
 
         return x
-

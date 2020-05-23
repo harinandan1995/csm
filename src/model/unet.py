@@ -1,7 +1,7 @@
-from src.nnutils.blocks import *
-
 import torch
 import torch.nn as nn
+
+from src.nnutils.blocks import *
 
 
 class UNet(nn.Module):
