@@ -2,6 +2,7 @@ import numpy as np
 import scipy.io as sio
 import torch
 
+from pytorch3d.transforms import quaternion_to_matrix
 
 def convert_uv_to_3d(uv):
     """
@@ -51,6 +52,32 @@ def convert_3d_to_uv_coordinates(points):
         u = 0.5 + phi / (2 * np.pi)
         v = 0.5 + theta / np.pi
         return np.stack([u, v], axis=1)
+
+
+def get_scaled_orthographic_projection(scale, trans, quat):
+    """
+    Generate scaled orthographic projection matrices R and T 
+    for the given scale, tranlation and rotation in quaternions
+
+    :param scale: A [B, 1] tensor with the scale values for the batch
+    :param trans: A [B, 2] tensor with tx and ty values for the batch
+    :param quat: A [B, 4] tensor with quaternion values for the batch
+    
+    :return: A tuple (R, T) 
+        R - A [B, 3, 3] tensor for rotation
+        T - A [B, 3] tensor for translation
+    """
+
+    T = torch.cat((trans, torch.ones([trans.size(0), 1])), dim=1)
+
+    scale_matrix = torch.zeroes((scale.size(0), 3))
+    scale_matrix[:, 0] = scale
+    scale_matrix[:, 1] = scale
+    
+    R = quaternion_to_matrix(quat)
+    R = scale_matrix * R
+    
+    return R, T
 
 
 def compute_barycentric_coordinates(uv_vertices, uv_points):
