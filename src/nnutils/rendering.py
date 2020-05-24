@@ -168,7 +168,7 @@ class DepthRenderer(nn.Module):
         )
         _lights = PointLights(device=device, location=((1.0, 1.0, 2.0),))
 
-        self._shader = HardPhongShader(device=device, lights=_lights)
+        self._shader = HardPhongShader(device=device, lights=_lights, cameras=cameras)
 
     def forward(self, meshes: Meshes, R: torch.Tensor, T: torch.Tensor):
         """
