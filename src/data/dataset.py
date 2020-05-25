@@ -1,7 +1,6 @@
 import cv2
 import imageio
 import numpy as np
-
 import trimesh
 from torch.utils.data import Dataset
 
@@ -10,13 +9,12 @@ from src.data import transformations
 from src.nnutils.geometry import convert_3d_to_uv_coordinates
 
 
-
 class IDataset(Dataset):
     """
     Interface for the dataset
     """
 
-    def __init__(self, config):
+    def __init__(self, config, device='cuda:0'):
 
         self.config = config
         self.img_size = config.img_size
@@ -25,6 +23,10 @@ class IDataset(Dataset):
         self.rngFlip = np.random.RandomState(0)
         self.transform = config.transform
         self.flip = config.flip
+        self.device = device
+
+        self.mean_shape, self.template_mesh = self._get_template_info()
+        self.kp_3d, self.kp_uv, self.kp_names, self.kp_perm = self.load_key_points()
 
     def __len__(self):
 
@@ -66,8 +68,25 @@ class IDataset(Dataset):
             elem['flip_mask'] = flip_mask
         return elem
 
-    def load_key_points(self):
+    def _get_template_info(self):
+        """
+        Gets the template information
 
+        :return: A tuple (mean_shape, template_mesh)
+        mean_shape is a dictionary containing the following values
+            uv_map - A R X R tensor of defining the UV steps. Where R is the resolution of the UV map.
+            uv_vertices - A (None, 2) tensor with UV values for the vertices
+            verts - A (None, 3) tensor of vertex coordinates of the mean shape
+            sphere_verts - A (None, 3) tensor with sphere coordinates for the vertices
+                calculated by projecting the vertices onto a sphere
+            face_inds - A R X R tensor where each value is the index of the face for
+            faces - A (None, 3) tensor of faces of the mean shape
+        template_mesh is a pytorch3D mesh object
+        """
+
+        return NotImplementedError('Must be implemented by a child class')
+
+    def load_key_points(self):
         """
         :return: A tuple containing the below values in the same order
         3D key points (None, 3),
@@ -79,17 +98,8 @@ class IDataset(Dataset):
         return NotImplementedError('Must be implemented by a child class')
 
     def get_data(self, index):
-        """
-        For the given index return a tuple containing the following attributes
-
-
-        :return: list of data in expected format
-        """
 
         raise NotImplementedError('get_items method should be implemented in the child class')
-
-    # TODO: Write the augmentation functions if necessary, like vertical & horizontal flips, contrast adjustments etc.
-    #  check https://pytorch.org/docs/stable/torchvision/transforms.html for transformations
 
     # Space to implement common functions that can be used across multiple datasets
     def forward_img(self, index):
@@ -340,18 +350,16 @@ class IDataset(Dataset):
 
         return new_kp, sfm_pose
 
-    def preprocess_to_find_kp_uv(self, kp3d, faces, verts, verts_sphere):
+    def preprocess_to_find_kp_uv(self, kp3d, faces, verts):
         """
         Project 3d key points to closest point on mesh and projected in uv_coordinate
 
         :param kp3d: A np.ndarray 15*3, 3d key points
         :param faces: A np.ndarray F*3 ,faces of mesh; F - number of faces
         :param verts: A np.ndarray V*3 ,vertexs of mesh; V - number of vertices
-        :param verts_sphere: A np.ndarray 642*3, vertexs of mesh sphere
         :return:kp_uv: A np.ndarray 15*2, projected key points in uv coordinate
         """
         mesh = trimesh.Trimesh(verts, faces)
         closest_point = trimesh.proximity.closest_point(mesh, kp3d)
         kp_uv = convert_3d_to_uv_coordinates(closest_point[0])
         return kp_uv
-

@@ -2,27 +2,27 @@ import os.path as osp
 
 import numpy as np
 import scipy.io as sio
+from pytorch3d.io import load_objs_as_meshes
 
 from src.data import transformations
 from src.data.dataset import IDataset
+from src.nnutils.geometry import load_mean_shape
 from src.utils.utils import validate_paths
 
 
 class CubDataset(IDataset):
 
-    def __init__(self, config):
+    def __init__(self, config, device='cuda:0'):
 
         self.cache_dir = config.dir.cache_dir
         self.data_dir = config.dir.data_dir
         self.img_dir = osp.join(self.data_dir, 'images')
 
-        super(CubDataset, self).__init__(config)
+        super(CubDataset, self).__init__(config, device)
 
         self.anno = []
         self.anno_sfm = []
-        self.mean_shape = {}
         self.num_samples = 0
-        self.kp_3d, self.kp_uv, self.kp_names,self.kp_perm = self.load_key_points()
         self.load_data()
 
     def __len__(self):
@@ -31,6 +31,13 @@ class CubDataset(IDataset):
         """
 
         return self.num_samples
+
+    def _get_template_info(self):
+
+        mean_shape = load_mean_shape(osp.join(self.cache_dir, 'uv', 'mean_shape.mat'))
+        template_mesh = load_objs_as_meshes([self.config.dir.template], device=self.device)
+
+        return mean_shape, template_mesh
 
     def load_key_points(self):
 
@@ -43,12 +50,10 @@ class CubDataset(IDataset):
 
         kp_3d = sio.loadmat(anno_train_sfm_path, struct_as_record=False, squeeze_me=True)['S'].transpose().copy()
 
-        self.mean_shape = sio.loadmat(osp.join(self.cache_dir, 'uv', 'mean_shape.mat'))
         kp_uv = self.preprocess_to_find_kp_uv(
             kp_3d,
-            self.mean_shape['faces'],
-            self.mean_shape['verts'],
-            self.mean_shape['sphere_verts'])
+            self.mean_shape['faces'].cpu().numpy(),
+            self.mean_shape['verts'].cpu().numpy())
 
         return kp_3d, kp_uv, kp_names, kp_perm
 
@@ -67,7 +72,6 @@ class CubDataset(IDataset):
         self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
 
         self.num_samples = len(self.anno)
-        self.d3_data = self.get_3d_data()
 
     def get_data(self, index):
 
@@ -111,7 +115,6 @@ class CubDataset(IDataset):
             dic = self.__getitem__(idx)
             res.append(dic)
         return res
-
 
     def get_3d_data(self):
         """
