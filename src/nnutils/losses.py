@@ -15,8 +15,8 @@ def geometric_cycle_consistency_loss(gt_2d_pos_grid, pred_positions, mask):
     :return: The geometric cycle consistency loss
     """
 
-    gt = torch.mul(mask, gt_2d_pos_grid)
-    pred = torch.mul(mask, pred_positions)
+    gt = torch.mul(mask.unsqueeze(1), gt_2d_pos_grid)
+    pred = torch.mul(mask.unsqueeze(1), pred_positions)
 
     return torch.nn.functional.mse_loss(gt, pred)
 

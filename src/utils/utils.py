@@ -1,3 +1,4 @@
+import os
 import os.path as osp
 
 from datetime import datetime
@@ -9,6 +10,11 @@ def validate_paths(*args):
             raise FileNotFoundError('%s does not exist' % arg)
 
     return
+
+
+def create_dir_if_not_exists(path):
+
+    os.makedirs(path, exist_ok=True)
 
 
 def get_date():

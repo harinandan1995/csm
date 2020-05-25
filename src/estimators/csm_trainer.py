@@ -7,7 +7,7 @@ from src.estimators.trainer import ITrainer
 from src.model.csm import CSM
 from src.nnutils.geometry import get_gt_positions_grid
 from src.nnutils.losses import *
-from src.utils.utils import get_date, get_time
+from src.utils.utils import get_date, get_time, create_dir_if_not_exists
 
 
 class CSMTrainer(ITrainer):
@@ -44,7 +44,8 @@ class CSMTrainer(ITrainer):
         self.device = torch.device(device)
         self.dataset = CubDataset(config.dataset, self.device)
         self.gt_2d_pos_grid = get_gt_positions_grid(
-            (config.dataset.img_size, config.dataset.img_size)).to(self.device)
+            (config.dataset.img_size, config.dataset.img_size)).to(self.device).permute(2, 0, 1)
+        self.gt_2d_pos_grid = self.gt_2d_pos_grid.unsqueeze(0).unsqueeze(0)
 
         super(CSMTrainer, self).__init__(config.train)
 
@@ -54,8 +55,9 @@ class CSMTrainer(ITrainer):
 
         self.checkpoint_dir = osp.join(self.config.out_dir, "checkpoints",
                                        get_date(), get_time())
+        create_dir_if_not_exists(self.checkpoint_dir)
 
-    def _calculate_loss(self, batch):
+    def _calculate_loss(self, step, batch, epoch):
         """
         Calculates the total loss for the batch which is a combination of the
         - Geometric cycle consistency loss
@@ -75,13 +77,14 @@ class CSMTrainer(ITrainer):
         :return: The total loss calculated for the batch
         """
         img = batch['img'].to(self.device, dtype=torch.float)
-        mask = batch['mask'].to(self.device, dtype=torch.float)
+        mask = batch['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
         scale = batch['scale'].to(self.device, dtype=torch.float)
         trans = batch['trans'].to(self.device, dtype=torch.float)
         quat = batch['quat'].to(self.device, dtype=torch.float)
 
         pred_out = self.model(img, mask, scale, trans, quat)
 
+        uv = pred_out["uv"]
         pred_positions = pred_out['pred_positions']
         pred_depths = pred_out['pred_depths']
         pred_z = pred_out['pred_z']
@@ -89,9 +92,25 @@ class CSMTrainer(ITrainer):
         pred_masks = pred_out['pred_masks']
 
         loss = geometric_cycle_consistency_loss(self.gt_2d_pos_grid, pred_positions, mask)
-        loss += visibility_constraint_loss(pred_depths, pred_z, mask)
-        loss += mask_reprojection_loss(mask, pred_masks)
+        # loss += visibility_constraint_loss(pred_depths, pred_z, mask)
+        # loss += mask_reprojection_loss(mask, pred_masks)
         # loss += diverse_loss(pred_poses)
+
+        if step % 20 == 0:
+
+            uv_color = uv.view(-1, uv.size(2), uv.size(3), uv.size(4))
+            uv_color = torch.cat((torch.mul(uv_color, 255).long().to(self.device),
+                                  torch.zeros((uv_color.size(0), 1,
+                                               uv_color.size(2), uv_color.size(3)),
+                                              dtype=torch.long).to(self.device)),
+                                 dim=1).to(self.device)
+
+            self.summary_writer.add_images('out/img/%d' % epoch, img, step % 20)
+            self.summary_writer.add_images('out/mask/%d' % epoch, mask, step % 20)
+            self.summary_writer.add_images('out/uv_2/%d' % epoch, uv_color, step % 20)
+            self.summary_writer.add_images('out/uv/%d' % epoch, uv_color * mask, step % 20)
+            self.summary_writer.add_images('out/depth/%d' % epoch, pred_depths, step % 20)
+            self.summary_writer.add_images('out/pred_mask/%d' % epoch, pred_masks, step % 20)
 
         return loss
 
@@ -100,6 +119,10 @@ class CSMTrainer(ITrainer):
         if current_epoch % 10 == 0:
             self._save_model(osp.join(self.checkpoint_dir,
                                       'model_%s_%d' % (get_time, current_epoch)))
+
+    def _batch_end_call(self, batch, loss, step, total_steps, epoch, total_epochs):
+
+        print('%d:%d/%d loss %f' %(epoch, step, total_steps, loss))
 
     def _get_data_loader(self):
         return torch.utils.data.DataLoader(

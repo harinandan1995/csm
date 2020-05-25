@@ -3,7 +3,7 @@ from pytorch3d.renderer.cameras import OpenGLOrthographicCameras
 
 from src.model.unet import UNet
 from src.model.uv_to_3d import UVto3D
-from src.nnutils.geometry import get_scaled_orthographic_projection
+from src.nnutils.geometry import get_scaled_orthographic_projection, convert_3d_to_uv_coordinates
 from src.nnutils.rendering import MaskRenderer, DepthRenderer
 
 
@@ -14,7 +14,7 @@ class CSM(torch.nn.Module):
 
         self.device = device
 
-        self.unet = UNet(4, 2).to(self.device)
+        self.unet = UNet(4, 3).to(self.device)
         self.uv_to_3d = UVto3D(mean_shape).to(self.device)
         self.mask_render = MaskRenderer(device=self.device)
         self.depth_render = DepthRenderer(device=self.device)
@@ -24,42 +24,43 @@ class CSM(torch.nn.Module):
 
         rotation, translation = get_scaled_orthographic_projection(
             scale, trans, quat, self.device)
-        rotation = rotation.unsqueeze(0)
-        translation = translation.unsqueeze(0)
 
-        uv = self.unet(torch.cat((img, mask.unsqueeze(1)), 1))
-        print(uv.shape)
-        uv_3d = self._convert_uv_to_world(uv)
         cameras = OpenGLOrthographicCameras(
             R=rotation, T=translation, device=self.device)
 
-        pred_pos, pred_z = self._project_world_to_image(uv_3d, cameras)
-        depth = self.depth_render(self.template_mesh, rotation, translation)
-        pred_mask = self.mask_render(self.template_mesh, rotation, translation)
+        sphere_points = self.unet(torch.cat((img, mask), 1))
+        sphere_points = torch.tanh(sphere_points)
+        sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
+
+        pred_pos, pred_z, uv = self._get_projected_positions_image(sphere_points, cameras)
+        pred_mask, depth = self.depth_render(self.template_mesh.extend(img.size(0)), rotation, translation)
 
         out = {
             "pred_positions": pred_pos,
-            "pred_depths": depth,
+            "pred_depths": depth.unsqueeze(1),
             "pred_z": pred_z,
-            "pred_masks": pred_mask
+            "pred_masks": pred_mask.unsqueeze(1),
+            "uv": uv
         }
 
         return out
 
-    def _convert_uv_to_world(self, uv):
+    def _get_projected_positions_image(self, sphere_points, cameras):
+
+        uv = convert_3d_to_uv_coordinates(sphere_points.permute(0, 2, 3, 1))
         batch_size = uv.size(0)
         height = uv.size(1)
         width = uv.size(2)
 
         uv_flatten = uv.view(-1, 2)
-        uv_3d = self.uv_to_3d(uv_flatten)
-        uv_3d = uv_3d.view(batch_size, height, width, 3)
+        uv_3d = self.uv_to_3d(uv_flatten).view(batch_size, -1, 3)
 
-        return uv_3d
+        xy = cameras.transform_points(uv_3d)[:, :, :2]
+        xyz_cam = cameras.get_world_to_view_transform().transform_points(uv_3d)
+        z = xyz_cam[:, :, 2]
 
-    def _project_world_to_image(self, points, cameras):
-        xy = cameras.transform_points(points)[:, :, :2]
-        xyz_cam = cameras.get_world_to_view_transform().transform_points(points)
-        z = xyz_cam[:, :, 2:]
+        xy = xy.view(batch_size, 1, height, width, 2)
+        z = z.view(batch_size, 1, height, width, 1)
+        uv = uv.view(batch_size, 1, height, width, 2)
 
-        return xy, z
+        return xy.permute(0, 1, 4, 2, 3), z.permute(0, 1, 4, 2, 3), uv.permute(0, 1, 4, 2, 3)
