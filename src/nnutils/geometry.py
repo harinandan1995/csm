@@ -4,6 +4,7 @@ import torch
 
 from pytorch3d.transforms import quaternion_to_matrix
 
+
 def convert_uv_to_3d(uv):
     """
     Finds the 3D points on a sphere for the corresponding UV values
@@ -54,30 +55,31 @@ def convert_3d_to_uv_coordinates(points):
         return np.stack([u, v], axis=1)
 
 
-def get_scaled_orthographic_projection(scale, trans, quat):
+def get_scaled_orthographic_projection(scale, trans, quat, device='cuda:0'):
     """
-    Generate scaled orthographic projection matrices R and T 
-    for the given scale, tranlation and rotation in quaternions
+    Generate scaled orthographic projection matrices rotation and translation
+    for the given scale, translation and rotation in quaternions
 
     :param scale: A [B, 1] tensor with the scale values for the batch
     :param trans: A [B, 2] tensor with tx and ty values for the batch
     :param quat: A [B, 4] tensor with quaternion values for the batch
     
-    :return: A tuple (R, T) 
-        R - A [B, 3, 3] tensor for rotation
-        T - A [B, 3] tensor for translation
+    :return: A tuple (rotation, translation)
+        rotation - A [B, 3, 3] tensor for rotation
+        translation - A [B, 3] tensor for translation
     """
 
-    T = torch.cat((trans, torch.ones([trans.size(0), 1])), dim=1)
+    translation = torch.cat((trans, torch.ones(
+        [trans.size(0), 1], dtype=torch.float, device=device)), dim=1)
 
-    scale_matrix = torch.zeroes((scale.size(0), 3))
+    scale_matrix = torch.zeros((scale.size(0), 3), device=device)
     scale_matrix[:, 0] = scale
     scale_matrix[:, 1] = scale
     
-    R = quaternion_to_matrix(quat)
-    R = scale_matrix * R
+    rotation = quaternion_to_matrix(quat)
+    rotation = scale_matrix * rotation
     
-    return R, T
+    return rotation, translation
 
 
 def compute_barycentric_coordinates(uv_vertices, uv_points):
@@ -138,7 +140,7 @@ def get_gt_positions_grid(img_size):
     return grid
 
 
-def load_mean_shape(mean_shape_path):
+def load_mean_shape(mean_shape_path, device='cuda:0'):
     """
     Loads mean shape parameters from the mat file from mean_shape_path
     :param mean_shape_path: Path to the mat file
@@ -158,12 +160,12 @@ def load_mean_shape(mean_shape_path):
     else:
         mean_shape = mean_shape_path
 
-    # mean_shape['bary_cord'] = torch.from_numpy(mean_shape['bary_cord']).float()
-    mean_shape['uv_map'] = torch.from_numpy(mean_shape['uv_map']).float()
-    mean_shape['uv_verts'] = torch.from_numpy(mean_shape['uv_verts']).float()
-    mean_shape['verts'] = torch.from_numpy(mean_shape['verts']).float()
-    mean_shape['sphere_verts'] = torch.from_numpy(mean_shape['sphere_verts']).float()
-    mean_shape['face_inds'] = torch.from_numpy(mean_shape['face_inds']).long()
-    mean_shape['faces'] = torch.from_numpy(mean_shape['faces']).long()
+    mean_shape['bary_cord'] = torch.from_numpy(mean_shape['bary_cord']).float().to(device)
+    mean_shape['uv_map'] = torch.from_numpy(mean_shape['uv_map']).float().to(device)
+    mean_shape['uv_verts'] = torch.from_numpy(mean_shape['uv_verts']).float().to(device)
+    mean_shape['verts'] = torch.from_numpy(mean_shape['verts']).float().to(device)
+    mean_shape['sphere_verts'] = torch.from_numpy(mean_shape['sphere_verts']).float().to(device)
+    mean_shape['face_inds'] = torch.from_numpy(mean_shape['face_inds']).long().to(device)
+    mean_shape['faces'] = torch.from_numpy(mean_shape['faces']).long().to(device)
 
     return mean_shape

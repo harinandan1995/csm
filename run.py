@@ -2,10 +2,8 @@ import argparse
 
 import torch.utils.data
 
-from src.data.cub_dataset import CubDataset
 from src.scripts.test import start_test
 from src.scripts.train import start_train
-from src.utils.config import ConfigParser
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-m', '--mode',
@@ -26,28 +24,13 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
 
-    print(torch.cuda.current_device())
-    print(torch.cuda.get_device_name())
-    config = ConfigParser('./config/train.yml', None).config
-    cf_dataset = config.dataset
-    if cf_dataset.dataloader.dataset == 'cub':
-        dataset = CubDataset(cf_dataset)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=cf_dataset.dataloader.batch_size, shuffle=True)
-
-        for i, data in enumerate(dataloader):
-            for j in data:
-                print(j)
-                print(data[j].shape)
-            break
-
-        mean_shape = dataset.d3_data
-        for i in mean_shape:
-            print(i)
-            print(type(mean_shape[i]))
+    print('Device: %s:%s' % (
+        torch.cuda.get_device_name(),
+        torch.cuda.current_device()))
 
     if args.mode == 'train':
         print('Starting the training........')
-        # start_train(args.config)
+        start_train(args.config)
     else:
         print('Starting the testing........')
-        # start_test(args.config)
+        start_test(args.config)
