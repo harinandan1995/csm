@@ -13,6 +13,7 @@ dataset:
   num_kps: 15
 
   dir:
+    template: './datasets/cachedir/cub/model/mean_bird.obj'
     data_dir: './datasets/CUB_200_2011'
     cache_dir: './datasets/cachedir/cub'
 
@@ -21,10 +22,10 @@ dataset:
     batch_size: 64
 
 train:
-  batch_size: 8
+  batch_size: 1
   epochs: 100
   shuffle: True
-  workers: 16
+  workers: 0
   checkpoint: ''
   out_dir: './out'
   optim:

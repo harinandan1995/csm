@@ -1,9 +1,10 @@
 import os.path as osp
 
 import torch.utils.data
-import trimesh
 
+from src.data.cub_dataset import CubDataset
 from src.estimators.trainer import ITrainer
+from src.model.csm import CSM
 from src.nnutils.geometry import get_gt_positions_grid
 from src.nnutils.losses import *
 from src.utils.utils import get_date, get_time
@@ -21,12 +22,14 @@ class CSMTrainer(ITrainer):
 
     """
 
-    def __init__(self, template, config):
+    def __init__(self, config, device='cuda'):
         """
-        :param template: Path to the mesh template for the data as an obj file
+        :param
         :param config: A dictionary containing the following parameters
 
         {
+            template: Path to the mesh template for the data as an obj file
+
             epochs: Number of epochs for the training
             checkpoint: Path to a checkpoint to pre load a model. None if no weights are to be loaded.
             optim.type: Type of the optimizer to the used during the training. Allowed values are 'adam' and 'sgd'
@@ -38,14 +41,19 @@ class CSMTrainer(ITrainer):
             workers: Number of workers to be used for the data processing
         }
         """
+        self.device = torch.device(device)
+        self.dataset = CubDataset(config.dataset, self.device)
+        self.gt_2d_pos_grid = get_gt_positions_grid(
+            (config.dataset.img_size, config.dataset.img_size)).to(self.device)
 
         super(CSMTrainer, self).__init__(config.train)
 
-        self.mesh = trimesh.load(template, 'obj')
-        self.summary_writer.add_mesh('Template', self.mesh['vertices'], faces=self.mesh['faces'])
-        self.gt_2d_pos_grid = get_gt_positions_grid(config.dataset.image_size)
+        self.template_mesh = self.dataset.template_mesh
+        self.summary_writer.add_mesh('Template', self.template_mesh.verts_packed().unsqueeze(0),
+                                     faces=self.template_mesh.faces_packed().unsqueeze(0))
 
-        self.checkpoint_dir = osp.join(self.config.out_dir, 'checkpoints', get_date, get_time)
+        self.checkpoint_dir = osp.join(self.config.out_dir, "checkpoints",
+                                       get_date(), get_time())
 
     def _calculate_loss(self, batch):
         """
@@ -66,37 +74,36 @@ class CSMTrainer(ITrainer):
 
         :return: The total loss calculated for the batch
         """
+        img = batch['img'].to(self.device, dtype=torch.float)
+        mask = batch['mask'].to(self.device, dtype=torch.float)
+        scale = batch['scale'].to(self.device, dtype=torch.float)
+        trans = batch['trans'].to(self.device, dtype=torch.float)
+        quat = batch['quat'].to(self.device, dtype=torch.float)
 
-        img = batch['img']
-        mask = batch['mask']
-        cam_pose = batch['sfm_pose']
-        batch_size = img.shape[0]
-
-        pred_out = self.model(img, mask)
+        pred_out = self.model(img, mask, scale, trans, quat)
 
         pred_positions = pred_out['pred_positions']
         pred_depths = pred_out['pred_depths']
         pred_z = pred_out['pred_z']
-        pred_poses = pred_out['pred_poses']
+        # pred_poses = pred_out['pred_poses']
         pred_masks = pred_out['pred_masks']
 
         loss = geometric_cycle_consistency_loss(self.gt_2d_pos_grid, pred_positions, mask)
         loss += visibility_constraint_loss(pred_depths, pred_z, mask)
         loss += mask_reprojection_loss(mask, pred_masks)
-        loss += diverse_loss(pred_poses)
+        # loss += diverse_loss(pred_poses)
 
         return loss
 
     def _epoch_end_call(self, current_epoch, total_epochs):
-        
         # Save checkpoint after every 10 epochs
         if current_epoch % 10 == 0:
-            self._save_model(osp.join(self.checkpoint_dir, 'model_%s_%d' % (get_time, epoch)))
+            self._save_model(osp.join(self.checkpoint_dir,
+                                      'model_%s_%d' % (get_time, current_epoch)))
 
     def _get_data_loader(self):
-
         return torch.utils.data.DataLoader(
-            None, batch_size=self.config.batch_size,
+            self.dataset, batch_size=self.config.batch_size,
             shuffle=self.config.shuffle, num_workers=self.config.workers)
 
     def _get_model(self):
@@ -117,5 +124,7 @@ class CSMTrainer(ITrainer):
         :return: A torch model satisfying the above input output structure
         """
 
-        # TODO: Write the code to get the actual model once the model is implemented
-        return None
+        model = CSM(self.dataset.template_mesh,
+                    self.dataset.mean_shape, self.device).to(self.device)
+
+        return model
