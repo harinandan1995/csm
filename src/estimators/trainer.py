@@ -38,7 +38,7 @@ class ITrainer:
         self.data_loader = self._get_data_loader()
         self.optimizer = self._get_optimizer(config)
 
-        self.summary_dir = osp.join(self.config.out_dir, 'summaries', get_date, get_time)
+        self.summary_dir = osp.join(self.config.out_dir, 'summaries', get_date(), get_time())
         self.summary_writer = SummaryWriter(self.summary_dir)
 
     def train(self):

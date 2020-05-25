@@ -1,10 +1,8 @@
 # TODO: Implement basic blocks which can be re used for different models that can be used.
 #  eg: Conv block, Convtrans block, resnet block, you can refer the original repo
 
-import torch
-import torchvision
 import torch.nn as nn
-import torch.nn.functional as F
+import torchvision
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
