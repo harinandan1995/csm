@@ -8,10 +8,10 @@ def geometric_cycle_consistency_loss(gt_2d_pos_grid, pred_positions, mask):
     """
     Calculates the 2D l2 loss between the predicted 2D positions and ground truth positions
 
-    :param gt_2d_pos_grid: The ground truth positions with values between -
-    1 to 1 along both the axis. (W X H X 2)
-    :param pred_positions: The predicted 2D positions (B X CP X W X H X 2) in camera frame
-    :param mask: The ground truth fore ground mask
+    :param gt_2d_pos_grid: (1 x 1 x 2 x H X W) - The ground truth positions with values between -
+    1 to 1 along both the axis.
+    :param pred_positions: (B X CP X 2 X H X W) - The predicted 2D positions in camera frame
+    :param mask: (B X 1 X H X W) -The ground truth fore ground mask
     :return: The geometric cycle consistency loss
     """
 
@@ -36,7 +36,7 @@ def visibility_constraint_loss(pred_depths, pred_z, mask):
     :return: The visibility constraint loss
     """
 
-    extended_mask = mask.view(mask.shape[0], 1, mask.shape[1], mask.shape[2])
+    extended_mask = mask.unsqueeze(1)
     loss = torch.mul(torch.nn.functional.relu(torch.sub(pred_z, pred_depths)).pow(2), extended_mask)
 
     return loss.mean()
