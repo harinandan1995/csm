@@ -1,5 +1,4 @@
 import torch
-from pytorch3d.renderer.cameras import OpenGLOrthographicCameras
 
 from src.model.unet import UNet
 from src.model.uv_to_3d import UVto3D
@@ -25,27 +24,25 @@ class CSM(torch.nn.Module):
         rotation, translation = get_scaled_orthographic_projection(
             scale, trans, quat, self.device)
 
-        cameras = OpenGLOrthographicCameras(
-            R=rotation, T=translation, device=self.device)
-
         sphere_points = self.unet(torch.cat((img, mask), 1))
         sphere_points = torch.tanh(sphere_points)
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
-        pred_pos, pred_z, uv = self._get_projected_positions_image(sphere_points, cameras)
+        pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(sphere_points, rotation, translation)
         pred_mask, depth = self.depth_render(self.template_mesh.extend(img.size(0)), rotation, translation)
 
         out = {
             "pred_positions": pred_pos,
-            "pred_depths": depth.unsqueeze(1),
+            "pred_depths": torch.flip(depth.unsqueeze(1), (-1, -2)),
             "pred_z": pred_z,
-            "pred_masks": pred_mask.unsqueeze(1),
-            "uv": uv
+            "pred_masks": torch.flip(pred_mask.unsqueeze(1), (-1, -2)),
+            "uv": uv,
+            "uv_3d": uv_3d
         }
 
         return out
 
-    def _get_projected_positions_image(self, sphere_points, cameras):
+    def _get_projected_positions_of_sphere_points(self, sphere_points, rotation, translation):
 
         uv = convert_3d_to_uv_coordinates(sphere_points.permute(0, 2, 3, 1))
         batch_size = uv.size(0)
@@ -55,12 +52,13 @@ class CSM(torch.nn.Module):
         uv_flatten = uv.view(-1, 2)
         uv_3d = self.uv_to_3d(uv_flatten).view(batch_size, -1, 3)
 
-        xy = cameras.transform_points(uv_3d)[:, :, :2]
-        xyz_cam = cameras.get_world_to_view_transform().transform_points(uv_3d)
-        z = xyz_cam[:, :, 2]
+        xyz = torch.bmm(uv_3d, rotation) + translation[:, None, :]
 
-        xy = xy.view(batch_size, 1, height, width, 2)
-        z = z.view(batch_size, 1, height, width, 1)
-        uv = uv.view(batch_size, 1, height, width, 2)
+        xy = xyz[:, :, :2]
+        z = xyz[:, :, 2]
 
-        return xy.permute(0, 1, 4, 2, 3), z.permute(0, 1, 4, 2, 3), uv.permute(0, 1, 4, 2, 3)
+        xy = xy.view(batch_size, 1, height, width, 2).permute(0, 1, 4, 2, 3)
+        z = z.view(batch_size, 1, height, width, 1).permute(0, 1, 4, 2, 3)
+        uv = uv.view(batch_size, 1, height, width, 2).permute(0, 1, 4, 2, 3)
+
+        return torch.flip(xy, (-1, -2)), torch.flip(z, (-1, -2)), uv, uv_3d
