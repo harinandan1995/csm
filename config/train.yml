@@ -29,6 +29,6 @@ train:
   checkpoint: ''
   out_dir: './out'
   optim:
-    lr: 0.00008
+    lr: 0.00006
     beta1: 0.9
     type: 'adam'

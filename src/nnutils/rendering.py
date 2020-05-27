@@ -155,12 +155,14 @@ class DepthRenderer(nn.Module):
         # TODO: check which one to choose. Maybe introduce flag as function parameter.
         cameras = OpenGLOrthographicCameras(device=self.device)
         # cameras = OpenGLPerspectiveCameras(device=self.device)
+        blend_params = BlendParams(sigma=1e-4, gamma=1e-4)
 
         raster_settings = RasterizationSettings(
             image_size=image_size,
-            blur_radius=0,  # TODO: Remove because it is default setting
-
-            #            faces_per_pixel=1,  # TODO: Remove because it is default setting
+            faces_per_pixel=100,
+            blur_radius=np.log(1. / 1e-4 - 1.) * blend_params.sigma,
+            bin_size=None,
+            max_faces_per_bin=None
         )
         self._rasterizer = MeshRasterizer(
             cameras=cameras,
@@ -168,7 +170,7 @@ class DepthRenderer(nn.Module):
         )
         _lights = PointLights(device=device, location=((1.0, 1.0, 2.0),))
 
-        self._shader = HardPhongShader(device=device, lights=_lights, cameras=cameras)
+        self._shader = SoftSilhouetteShader(blend_params)
 
     def forward(self, meshes: Meshes, R: torch.Tensor, T: torch.Tensor):
         """
@@ -192,4 +194,4 @@ class DepthRenderer(nn.Module):
         image = self._shader(fragments, meshes)
         depth_map = fragments.zbuf
 
-        return image, depth_map[..., 0]
+        return image[..., 3], depth_map[..., 0]

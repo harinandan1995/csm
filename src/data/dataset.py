@@ -4,8 +4,7 @@ import numpy as np
 import trimesh
 from torch.utils.data import Dataset
 
-from src.data import image
-from src.data import transformations
+from src.data import image, transformations
 from src.nnutils.geometry import convert_3d_to_uv_coordinates
 
 
@@ -311,10 +310,12 @@ class IDataset(Dataset):
             kp_flip = np.hstack((new_x[:, None], kp[:, 1:]))
             kp_flip = kp_flip[kp_perm, :]
             kp_uv_flip = kp_uv[kp_perm, :]
+
             # Flip sfm_pose Rot.
             R = transformations.quaternion_matrix(sfm_pose[2])
             flip_R = np.diag([-1, 1, 1, 1]).dot(R.dot(np.diag([-1, 1, 1, 1])))
             sfm_pose[2] = transformations.quaternion_from_matrix(flip_R, isprecise=True)
+
             # Flip tx
             tx = img.shape[1] - sfm_pose[1][0] - 1
             sfm_pose[1][0] = tx
