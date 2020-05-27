@@ -19,3 +19,34 @@ def uv_to_rgb(uv, max_value=None, device='cuda:0'):
     rgb_map[:, 2] += normalized_uv[:, 1]
 
     return torch.mul(rgb_map.clamp(0, 1), 255).to(torch.long)
+
+def sample_UV_contour(img, uv_map, uv_img, mask, real_img=True):
+    '''
+    Args
+        img : torch.FloatTensor  C X H x W  -- this is the image
+        uv_map: torch.FloatTensor H x W x 2 -- uv predictions
+        uv_img: torch.FloatTensor C x H x W  -- this the texture map
+        mask: torch.FloatTensor  1 x  H x W -- mask for the object
+    Returns
+        uv_rendering: torch.FloatTensor  C x H x W
+    '''
+    img = img.unsqueeze(0)
+    uv_map = uv_map.unsqueeze(0)
+    uv_img = uv_img.unsqueeze(0)
+    shape_alphas = uv_img.shape
+
+    uv_sample = torch.nn.functional.grid_sample(uv_img, 2 * uv_map - 1).squeeze(0)
+    uv_sample = uv_sample * mask + (1 - mask)
+    alphas = torch.ones(shape_alphas)
+
+    alpha_sample = torch.nn.functional.grid_sample(alphas, 2 * uv_map - 1, align_corners=True).squeeze(0)
+    alpha_sample = (alpha_sample > 0.0).float() * 0.7
+    alpha_sample = alpha_sample * mask
+
+    if real_img:
+        uv_rendering = (uv_sample * alpha_sample) * 1.0 + img.squeeze(0) * (1 - alpha_sample) * 0.4 * (
+            mask) + img.squeeze(0) * (1 - alpha_sample) * (1 - mask)
+    else:
+        uv_rendering = (uv_sample * alpha_sample) + (img.squeeze(0) * (1 - alpha_sample))
+
+    return uv_rendering
