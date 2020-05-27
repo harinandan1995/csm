@@ -13,6 +13,7 @@ dataset:
   num_kps: 15
 
   dir:
+    texture: 'resources/color_maps/bird/map3.png'
     template: './datasets/cachedir/cub/model/mean_bird.obj'
     data_dir: './datasets/CUB_200_2011'
     cache_dir: './datasets/cachedir/cub'

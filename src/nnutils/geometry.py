@@ -134,10 +134,10 @@ def get_gt_positions_grid(img_size):
     :return: The ground truth position grid
     """
 
-    x = torch.linspace(-1, 1, img_size[1]).view(1, -1).repeat(img_size[0], 1)
-    y = torch.linspace(-1, 1, img_size[0]).view(-1, 1).repeat(1, img_size[1])
-    grid = torch.cat((x.unsqueeze(2), y.unsqueeze(2)), 2)
-    grid.unsqueeze(0)
+    x = torch.linspace(-1, 1, img_size[1])
+    y = torch.linspace(-1, 1, img_size[0])
+    xv, yv = torch.meshgrid(x, y)
+    grid = torch.cat((xv.unsqueeze(2), yv.unsqueeze(2)), 2)
 
     return grid
 

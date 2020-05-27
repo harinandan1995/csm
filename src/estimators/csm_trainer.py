@@ -1,10 +1,13 @@
 import os.path as osp
 
+import numpy as np
 import torch.utils.data
+from PIL import Image
 
 from src.data.cub_dataset import CubDataset
 from src.estimators.trainer import ITrainer
 from src.model.csm import CSM
+from src.nnutils.color_transform import sample_uv_contour
 from src.nnutils.geometry import get_gt_positions_grid
 from src.nnutils.losses import *
 from src.utils.utils import get_date, get_time, create_dir_if_not_exists
@@ -42,6 +45,7 @@ class CSMTrainer(ITrainer):
         self.gt_2d_pos_grid = get_gt_positions_grid(
             (config.dataset.img_size, config.dataset.img_size)).to(self.device).permute(2, 0, 1)
         self.gt_2d_pos_grid = self.gt_2d_pos_grid.unsqueeze(0).unsqueeze(0)
+        self.texture_map = self._get_texture_map(config.dataset.dir.texture)
 
         super(CSMTrainer, self).__init__(config.train)
 
@@ -101,7 +105,7 @@ class CSMTrainer(ITrainer):
         # Save checkpoint after every 10 epochs
         if current_epoch % 10 == 0:
             self._save_model(osp.join(self.checkpoint_dir,
-                                      'model_%s_%d' % (get_time, current_epoch)))
+                                      'model_%s_%d' % (get_time(), current_epoch)))
 
     def _batch_end_call(self, batch, loss, step, total_steps, epoch, total_epochs):
         # Print the loss at the end of each batch
@@ -141,7 +145,7 @@ class CSMTrainer(ITrainer):
 
         :param step: Current optimization step number (Batch number)
         :param epoch: Current epoch
-        :param uv: A (B X CP X 2 X H X W) tensor of UV values for the batch
+        :param uv: A (B X 2 X H X W) tensor of UV values for the batch
         :param uv_3d: A (B X None X 3) tensor of 3D coordinates for the UV values
         :param img: A (B X 3 X H X W) tensor of input image
         :param mask: A (B X 1 X H X W) tensor of input foreground mask
@@ -153,14 +157,17 @@ class CSMTrainer(ITrainer):
 
         if step % 20 == 0:
 
-            uv_color = torch.cat((torch.mul(uv, 255).long().to(self.device),
-                                  torch.zeros((uv.size(0), 1, uv.size(2), uv.size(3)),
-                                              dtype=torch.long).to(self.device)),
-                                 dim=1).to(self.device)
-
+            uv_color, uv_blend = sample_uv_contour(img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
             self.summary_writer.add_images('%d/out/img' % epoch, img, step % 20)
             self.summary_writer.add_images('%d/out/mask' % epoch, mask, step % 20)
-            self.summary_writer.add_images('%d/out/uv_2' % epoch, uv_color, step % 20)
+            self.summary_writer.add_images('%d/out/uv_blend' % epoch, uv_blend, step % 20)
             self.summary_writer.add_images('%d/out/uv' % epoch, uv_color * mask, step % 20)
             self.summary_writer.add_images('%d/out/depth' % epoch, pred_depths, step % 20)
             self.summary_writer.add_images('%d/out/pred_mask' % epoch, pred_masks, step % 20)
+
+    def _get_texture_map(self, img_path):
+
+        texture_map = Image.open(img_path).resize((256, 256), Image.ANTIALIAS)
+        texture_map = torch.from_numpy(np.asarray(texture_map)).permute(2, 0, 1)
+
+        return texture_map.to(self.device, dtype=torch.float) / 255
