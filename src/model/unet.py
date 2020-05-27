@@ -3,31 +3,57 @@ from src.nnutils.blocks import *
 
 
 class UNet(nn.Module):
+    """
+    Module to use UNet with different layers
+    """
 
-    def __init__(self, in_channels=3, out_channels=1, init_features=32):
+    def __init__(self, in_channels=3, out_channels=1, features=None, batch_norm=False):
+        """
+        Construct the architecture of UNet
+
+        :param in_channels: scalar (default 3 for GRB image)
+        :param out_channels: scalar (default 1)
+        :param features: list at most 5 elements (default [32,64,128,256,512])
+                   if the list has more than 5 elements, we only keep the first 5
+                   if the list has less than 5 elements, we extend the later layers with double features
+        ：param batch_norm: bool, whether we have batch normalization (default: false)
+        """
         super(UNet, self).__init__()
 
-        features = init_features
-        self.encoder1 = double_conv(in_channels, features)
-        self.encoder2 = double_conv(features, features * 2)
-        self.encoder3 = double_conv(features * 2, features * 4)
-        self.encoder4 = double_conv(features * 4, features * 8)
+        if features is None:
+            features = [32, 64, 128, 256, 512]
+        if len(features) > 5:
+            features = features[:5]
+        elif len(features) < 5:
+            while len(features) != 5:
+                features.append(features[-1] * 2)
+
+        self.encoder1 = double_conv(in_channels, features[0], batch_norm=batch_norm)
+        self.encoder2 = double_conv(features[0], features[1], batch_norm=batch_norm)
+        self.encoder3 = double_conv(features[1], features[2], batch_norm=batch_norm)
+        self.encoder4 = double_conv(features[2], features[3], batch_norm=batch_norm)
 
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.bottleneck = double_conv(features * 8, features * 16)
+        self.bottleneck = double_conv(features[3], features[4], batch_norm=batch_norm)
 
-        self.decoder4 = double_conv(features * 16, features * 8)
-        self.decoder3 = double_conv(features * 8, features * 4)
-        self.decoder2 = double_conv(features * 4, features * 2)
-        self.decoder1 = double_conv(features * 2, features)
+        self.decoder4 = double_conv(features[4] + features[3], features[3], batch_norm=batch_norm)
+        self.decoder3 = double_conv(features[3] + features[2], features[2], batch_norm=batch_norm)
+        self.decoder2 = double_conv(features[2] + features[1], features[1], batch_norm=batch_norm)
+        self.decoder1 = double_conv(features[1] + features[0], features[0], batch_norm=batch_norm)
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
 
         self.conv = nn.Conv2d(
-            in_channels=features, out_channels=out_channels, kernel_size=1
+            in_channels=features[0], out_channels=out_channels, kernel_size=1
         )
 
     def forward(self, x):
+        """
+        pass the data forward the UNet
+
+        :param x: [D X W X H X C] or [D X W X H X 1] tensor
+        :return :  [D X W X H X 1] tensor
+        """
         enc1 = self.encoder1(x)
         enc2 = self.encoder2(self.pool(enc1))
         enc3 = self.encoder3(self.pool(enc2))

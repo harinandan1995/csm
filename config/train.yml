@@ -13,6 +13,7 @@ dataset:
   num_kps: 15
 
   dir:
+    texture: 'resources/color_maps/bird/map3.png'
     template: './datasets/cachedir/cub/model/mean_bird.obj'
     data_dir: './datasets/CUB_200_2011'
     cache_dir: './datasets/cachedir/cub'
@@ -22,13 +23,13 @@ dataset:
     batch_size: 64
 
 train:
-  batch_size: 1
+  batch_size: 5
   epochs: 100
   shuffle: True
-  workers: 0
+  workers: 10
   checkpoint: ''
   out_dir: './out'
   optim:
-    lr: 0.0004
-    beta1: 0.99
+    lr: 0.00006
+    beta1: 0.9
     type: 'adam'

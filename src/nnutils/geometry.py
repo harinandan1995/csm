@@ -70,14 +70,16 @@ def get_scaled_orthographic_projection(scale, trans, quat, device='cuda:0'):
     """
 
     translation = torch.cat((trans, torch.ones(
-        [trans.size(0), 1], dtype=torch.float, device=device)), dim=1)
+        [trans.size(0), 1], dtype=torch.float, device=device)*5), dim=1)
 
-    scale_matrix = torch.zeros((scale.size(0), 3), device=device)
-    scale_matrix[:, 0] = scale
-    scale_matrix[:, 1] = scale
+    scale_matrix = torch.zeros((scale.size(0), 3, 3), device=device)
+    scale_matrix[:, 0, 0] = scale
+    scale_matrix[:, 1, 1] = scale
+    scale_matrix[:, 2, 2] = scale
     
-    rotation = quaternion_to_matrix(quat)
-    rotation = scale_matrix * rotation
+    rotation = quaternion_to_matrix(quat).permute(0, 2, 1)
+    # TODO: Move the transpose to the CSM model
+    rotation = torch.matmul(scale_matrix, rotation)
     
     return rotation, translation
 
@@ -132,10 +134,10 @@ def get_gt_positions_grid(img_size):
     :return: The ground truth position grid
     """
 
-    x = torch.linspace(-1, 1, img_size[1]).view(1, -1).repeat(img_size[0], 1)
-    y = torch.linspace(-1, 1, img_size[0]).view(-1, 1).repeat(1, img_size[1])
-    grid = torch.cat((x.unsqueeze(2), y.unsqueeze(2)), 2)
-    grid.unsqueeze(0)
+    x = torch.linspace(-1, 1, img_size[1])
+    y = torch.linspace(-1, 1, img_size[0])
+    xv, yv = torch.meshgrid(x, y)
+    grid = torch.cat((xv.unsqueeze(2), yv.unsqueeze(2)), 2)
 
     return grid
 

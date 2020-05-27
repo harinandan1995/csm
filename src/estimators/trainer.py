@@ -13,10 +13,6 @@ class ITrainer:
     and calculate_loss functions for the trainer to work.
     """
 
-    # TODO: Visualizations
-    # TODO: Saving checkpoints
-    # TODO: More metrics
-
     def __init__(self, config):
         """
         :param config: A dictionary containing the following parameters.
@@ -56,7 +52,7 @@ class ITrainer:
                 
                 self._batch_start_call(batch, step, len(self.data_loader), epoch, self.config.epochs)
                 
-                loss = self._train_step(step, batch)
+                loss = self._train_step(step, batch, epoch)
                 running_loss += loss.item()
                 
                 self._batch_end_call(batch, loss, step, len(self.data_loader), 
@@ -89,7 +85,7 @@ class ITrainer:
             self.model.load_state_dict(torch.load(path))
             print('Loaded model from %s' % path)
 
-    def _train_step(self, step, batch):
+    def _train_step(self, step, batch, epoch):
         """
         Optimization step for each batch of data
         Calculating the loss and perform gradient optimization for the batch
@@ -99,7 +95,7 @@ class ITrainer:
         """
 
         self.model.zero_grad()
-        loss = self._calculate_loss(batch)
+        loss = self._calculate_loss(step, batch, epoch)
         loss.backward()
         self.optimizer.step()
 
@@ -139,7 +135,7 @@ class ITrainer:
 
         return NotImplementedError
 
-    def _calculate_loss(self, batch):
+    def _calculate_loss(self, step, batch, epoch):
         """
         Must be implemented by the child class.
 
