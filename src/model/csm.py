@@ -3,7 +3,7 @@ import torch
 from src.model.unet import UNet
 from src.model.uv_to_3d import UVto3D
 from src.nnutils.geometry import get_scaled_orthographic_projection, convert_3d_to_uv_coordinates
-from src.nnutils.rendering import MaskRenderer, DepthRenderer
+from src.nnutils.rendering import MaskRenderer, DepthRenderer, CombinedRenderer
 
 
 class CSM(torch.nn.Module):
@@ -33,7 +33,7 @@ class CSM(torch.nn.Module):
             - face_inds: A R X R tensor where each value is the index of the face for
         the corresponding UV value in uv_map.
         :param use_gt_cam: True or False. True if you want to use the ground truth camera pose. False if you want to
-            use the camer predictor to predict the camera poses
+            use the camera predictor to predict the camera poses
         :param device: Device to store the tensor. Default: cuda
         """
         super(CSM, self).__init__()
@@ -42,9 +42,9 @@ class CSM(torch.nn.Module):
 
         self.unet = UNet(4, 3).to(self.device)
         self.uv_to_3d = UVto3D(mean_shape).to(self.device)
-        self.mask_render = MaskRenderer(device=self.device)
-        self.depth_render = DepthRenderer(device=self.device)
-        self.template_mesh = template_mesh
+        # self.mask_renderer = MaskRenderer(meshes=template_mesh, device=self.device)  # keep separate renderers
+        # self.depth_renderer = DepthRenderer(meshes=template_mesh, device=self.device)  # keep separate renderers
+        self.renderer = CombinedRenderer(meshes=template_mesh, device=self.device)  # keep separate renderers
 
     def forward(self, img, mask, scale, trans, quat):
         """
@@ -84,7 +84,8 @@ class CSM(torch.nn.Module):
 
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
             sphere_points, rotation, translation)
-        pred_mask, depth = self.depth_render(self.template_mesh.extend(img.size(0)), rotation, translation)
+        # meshes are stored in the renderer so they dont need to be passed
+        depth, pred_mask = self.renderer(rotation, translation)
 
         out = {
             "pred_positions": pred_pos,
