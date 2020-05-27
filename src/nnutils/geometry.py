@@ -70,14 +70,14 @@ def get_scaled_orthographic_projection(scale, trans, quat, device='cuda:0'):
     """
 
     translation = torch.cat((trans, torch.ones(
-        [trans.size(0), 1], dtype=torch.float, device=device)), dim=1)
+        [trans.size(0), 1], dtype=torch.float, device=device)*5), dim=1)
 
     scale_matrix = torch.zeros((scale.size(0), 3, 3), device=device)
     scale_matrix[:, 0, 0] = scale
     scale_matrix[:, 1, 1] = scale
-    scale_matrix[:, 2, 2] = 1
+    scale_matrix[:, 2, 2] = scale
     
-    rotation = quaternion_to_matrix(quat)
+    rotation = quaternion_to_matrix(quat).permute(0, 2, 1)
     rotation = torch.matmul(scale_matrix, rotation)
     
     return rotation, translation
