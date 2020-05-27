@@ -1,10 +1,7 @@
-# TODO: loss functions that will be used for the training
-
 import torch
 
 
 def geometric_cycle_consistency_loss(gt_2d_pos_grid, pred_positions, mask):
-
     """
     Calculates the 2D l2 loss between the predicted 2D positions and ground truth positions
 
@@ -22,7 +19,6 @@ def geometric_cycle_consistency_loss(gt_2d_pos_grid, pred_positions, mask):
 
 
 def visibility_constraint_loss(pred_depths, pred_z, mask):
-
     """
     Calculates the visibility constraint loss between the z values for the predicted positions
     and the depth values rendered for the camera poses.
@@ -43,7 +39,6 @@ def visibility_constraint_loss(pred_depths, pred_z, mask):
 
 
 def mask_reprojection_loss(mask, pred_masks):
-
     """
     Calculates the mask re-projection loss (L2) between the ground truth mask and the
     masks rendered for the predicted camera poses.
@@ -60,6 +55,4 @@ def mask_reprojection_loss(mask, pred_masks):
 
 
 def diverse_loss(pred_poses):
-
     return
-

@@ -1,4 +1,3 @@
-# TODO: Once the trainer is ready this script will be used to start the training
 from src.utils.config import ConfigParser
 from src.estimators.csm_trainer import CSMTrainer
 

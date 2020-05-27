@@ -13,10 +13,6 @@ class ITrainer:
     and calculate_loss functions for the trainer to work.
     """
 
-    # TODO: Visualizations
-    # TODO: Saving checkpoints
-    # TODO: More metrics
-
     def __init__(self, config):
         """
         :param config: A dictionary containing the following parameters.

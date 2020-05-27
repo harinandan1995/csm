@@ -78,6 +78,7 @@ def get_scaled_orthographic_projection(scale, trans, quat, device='cuda:0'):
     scale_matrix[:, 2, 2] = scale
     
     rotation = quaternion_to_matrix(quat).permute(0, 2, 1)
+    # TODO: Move the transpose to the CSM model
     rotation = torch.matmul(scale_matrix, rotation)
     
     return rotation, translation

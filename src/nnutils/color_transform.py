@@ -2,6 +2,7 @@ import torch
 
 
 def uv_to_rgb(uv, max_value=None, device='cuda:0'):
+    # TODO: Add documentation
 
     b, _, h, w = uv.shape
 

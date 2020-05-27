@@ -7,7 +7,6 @@ from src.estimators.trainer import ITrainer
 from src.model.csm import CSM
 from src.nnutils.geometry import get_gt_positions_grid
 from src.nnutils.losses import *
-from src.nnutils.color_transform import uv_to_rgb
 from src.utils.utils import get_date, get_time, create_dir_if_not_exists
 
 
@@ -25,12 +24,8 @@ class CSMTrainer(ITrainer):
 
     def __init__(self, config, device='cuda'):
         """
-        :param
         :param config: A dictionary containing the following parameters
-
-        {
             template: Path to the mesh template for the data as an obj file
-
             epochs: Number of epochs for the training
             checkpoint: Path to a checkpoint to pre load a model. None if no weights are to be loaded.
             optim.type: Type of the optimizer to the used during the training. Allowed values are 'adam' and 'sgd'
@@ -40,7 +35,7 @@ class CSMTrainer(ITrainer):
             batch_size: Batch size to be used in the dataloader
             shuffle: True or False. True if you want to shuffle the data during the training
             workers: Number of workers to be used for the data processing
-        }
+        :param device: Device to store the tensors. Default: cuda
         """
         self.device = torch.device(device)
         self.dataset = CubDataset(config.dataset, self.device)
@@ -109,10 +104,11 @@ class CSMTrainer(ITrainer):
                                       'model_%s_%d' % (get_time, current_epoch)))
 
     def _batch_end_call(self, batch, loss, step, total_steps, epoch, total_epochs):
-
-        print('%d:%d/%d loss %f' %(epoch, step, total_steps, loss))
+        # Print the loss at the end of each batch
+        print('%d:%d/%d loss %f' % (epoch, step, total_steps, loss))
 
     def _get_data_loader(self):
+
         return torch.utils.data.DataLoader(
             self.dataset, batch_size=self.config.batch_size,
             shuffle=self.config.shuffle, num_workers=self.config.workers)
@@ -127,8 +123,7 @@ class CSMTrainer(ITrainer):
         pred_depths: A (B X CP X W X H) tensor with the depths rendered either using the predicted camera poses
         or the ground truth pose
         pred_z: A (B X CP X W X H) tensor with the z values in the camera frame for the positions predicted by the model
-        pred_poses: A (B X CP X 6) tensor containing the predicted camera poses.
-        Is be used only if config.use_gt_cam_pos is False.
+        pred_poses: A (B X CP X 6) tensor containing the predicted camera poses if config.use_gt_cam_pos is False.
         pred_masks: A (B X CP X W X H) tensor with masks rendered using the predicted camera poses.
         Is used only if config.use_gt_cam_pos is False
 
@@ -141,20 +136,31 @@ class CSMTrainer(ITrainer):
         return model
 
     def _add_summaries(self, step, epoch, uv, uv_3d, img, mask, pred_depths, pred_masks):
+        """
+        Adds image summaries to the summary writer
+
+        :param step: Current optimization step number (Batch number)
+        :param epoch: Current epoch
+        :param uv: A (B X CP X 2 X H X W) tensor of UV values for the batch
+        :param uv_3d: A (B X None X 3) tensor of 3D coordinates for the UV values
+        :param img: A (B X 3 X H X W) tensor of input image
+        :param mask: A (B X 1 X H X W) tensor of input foreground mask
+        :param pred_depths: A (B X 3 X H X W) tensor of depths rendered with the
+            gt. camera pose /predicted camera poses (if config.use_gt_cam_pose) is true
+        :param pred_masks: A (B X 3 X H X W) tensor of masks  rendered with the
+            gt. camera pose /predicted camera poses
+        """
 
         if step % 20 == 0:
 
-            uv_color = uv.view(-1, uv.size(2), uv.size(3), uv.size(4))
-            uv_color = torch.cat((torch.mul(uv_color, 255).long().to(self.device),
-                                  torch.zeros((uv_color.size(0), 1,
-                                               uv_color.size(2), uv_color.size(3)),
+            uv_color = torch.cat((torch.mul(uv, 255).long().to(self.device),
+                                  torch.zeros((uv.size(0), 1, uv.size(2), uv.size(3)),
                                               dtype=torch.long).to(self.device)),
                                  dim=1).to(self.device)
-            
+
             self.summary_writer.add_images('%d/out/img' % epoch, img, step % 20)
             self.summary_writer.add_images('%d/out/mask' % epoch, mask, step % 20)
             self.summary_writer.add_images('%d/out/uv_2' % epoch, uv_color, step % 20)
             self.summary_writer.add_images('%d/out/uv' % epoch, uv_color * mask, step % 20)
             self.summary_writer.add_images('%d/out/depth' % epoch, pred_depths, step % 20)
             self.summary_writer.add_images('%d/out/pred_mask' % epoch, pred_masks, step % 20)
-            
