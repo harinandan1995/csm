@@ -7,7 +7,7 @@ class UNet(nn.Module):
     Module to use UNet with different layers
     """
 
-    def __init__(self, in_channels=3, out_channels=1, features=[32,64,128,256,512], batch_norm=False):
+    def __init__(self, in_channels=3, out_channels=1, features=None, batch_norm=False):
         """
         Construct the architecture of UNet
 
@@ -20,6 +20,8 @@ class UNet(nn.Module):
         """
         super(UNet, self).__init__()
 
+        if features is None:
+            features = [32, 64, 128, 256, 512]
         if len(features) > 5:
             features = features[:5]
         elif len(features) < 5:
@@ -42,7 +44,7 @@ class UNet(nn.Module):
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
 
         self.conv = nn.Conv2d(
-            in_channels=features, out_channels=out_channels, kernel_size=1, batch_norm=batch_norm
+            in_channels=features[0], out_channels=out_channels, kernel_size=1
         )
 
     def forward(self, x):
@@ -60,16 +62,16 @@ class UNet(nn.Module):
         bottleneck = self.bottleneck(self.pool(enc4))
 
         dec4 = self.upsample(bottleneck)
-        #dec4 = torch.cat((dec4, enc4), dim=1)
+        dec4 = torch.cat((dec4, enc4), dim=1)
         dec4 = self.decoder4(dec4)
         dec3 = self.upsample(dec4)
-        #dec3 = torch.cat((dec3, enc3), dim=1)
+        dec3 = torch.cat((dec3, enc3), dim=1)
         dec3 = self.decoder3(dec3)
         dec2 = self.upsample(dec3)
-        #dec2 = torch.cat((dec2, enc2), dim=1)
+        dec2 = torch.cat((dec2, enc2), dim=1)
         dec2 = self.decoder2(dec2)
         dec1 = self.upsample(dec2)
-        #dec1 = torch.cat((dec1, enc1), dim=1)
+        dec1 = torch.cat((dec1, enc1), dim=1)
         dec1 = self.decoder1(dec1)
 
         return self.conv(dec1)
