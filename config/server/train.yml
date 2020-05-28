@@ -1,0 +1,35 @@
+dataset:
+  img_size: 256
+  img_height: 320
+  img_width: 512
+  split: 'train'
+  transform: 'flip'
+  padding_frac: 0.05
+  jitter_frac: 0.05
+  flip: True
+  tight_crop: False
+  flip_train: True
+  num_pairs: 10000
+  num_kps: 15
+
+  dir:
+    texture: 'resources/color_maps/bird/map3.png'
+    template: '/mnt/raid/csmteam/datasets/cachedir/cub/model/mean_bird_fixed.obj'
+    data_dir: '/mnt/raid/csmteam/datasets/CUB_200_2011'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
+
+  dataloader:
+    dataset: 'cub'
+    batch_size: 64
+
+train:
+  batch_size: 16
+  epochs: 100
+  shuffle: True
+  workers: 8
+  checkpoint: ''
+  out_dir: './out'
+  optim:
+    lr: 0.00006
+    beta1: 0.9
+    type: 'adam'
