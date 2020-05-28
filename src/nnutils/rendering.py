@@ -6,7 +6,7 @@ import torch.nn as nn
 from pytorch3d.renderer import (
     RasterizationSettings, MeshRenderer, MeshRasterizer, BlendParams,
     SoftSilhouetteShader, HardPhongShader, OpenGLOrthographicCameras,
-    PointLights
+    PointLights, TexturedSoftPhongShader
 )
 from pytorch3d.structures import Meshes
 from pytorch3d.transforms import so3_exponential_map
@@ -159,10 +159,6 @@ class DepthRenderer(nn.Module):
 
         raster_settings = RasterizationSettings(
             image_size=image_size,
-            faces_per_pixel=100,
-            blur_radius=np.log(1. / 1e-4 - 1.) * blend_params.sigma,
-            bin_size=None,
-            max_faces_per_bin=None
         )
         self._rasterizer = MeshRasterizer(
             cameras=cameras,
@@ -194,4 +190,35 @@ class DepthRenderer(nn.Module):
         image = self._shader(fragments, meshes)
         depth_map = fragments.zbuf
 
-        return image[..., 3], depth_map[..., 0]
+        return torch.ceil(image[..., 3]), depth_map[..., 0]
+
+
+class ColorRenderer(nn.Module):
+
+    def __init__(self, meshes, image_size=256, device='cuda'):
+
+        super(ColorRenderer, self).__init__()
+
+        self.meshes = meshes
+        cameras = OpenGLOrthographicCameras(device=device)
+
+        raster_settings = RasterizationSettings(
+            image_size=image_size,
+            blur_radius=0.0,
+            faces_per_pixel=1,
+            bin_size=0
+        )
+        lights = PointLights(device=device, location=((2.0, 2.0, -2.0),))
+        self.renderer = MeshRenderer(
+            rasterizer=MeshRasterizer(
+                cameras=cameras,
+                raster_settings=raster_settings
+            ),
+            shader=TexturedSoftPhongShader(device=device, lights=lights)
+        )
+
+    def forward(self, rotation, translation):
+
+        color_image = self.renderer(self.meshes.extend(rotation.size(0)), R=rotation, T=translation)
+
+        return color_image
