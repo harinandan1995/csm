@@ -13,7 +13,7 @@ class IDataset(Dataset):
     Interface for the dataset
     """
 
-    def __init__(self, config, device='cuda:0'):
+    def __init__(self, config, device='cuda'):
 
         self.config = config
         self.img_size = config.img_size

@@ -20,6 +20,11 @@ parser.add_argument('-c', '--config',
                     default='config/train.yml',
                     nargs=1)
 
+parser.add_argument('-d', '--device',
+                    help='Device to be used by pytorch',
+                    default='cuda:0',
+                    nargs=1)
+
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -30,7 +35,7 @@ if __name__ == '__main__':
 
     if args.mode == 'train':
         print('Starting the training........')
-        start_train(args.config)
+        start_train(args.config, args.device)
     else:
         print('Starting the testing........')
         start_test(args.config)
