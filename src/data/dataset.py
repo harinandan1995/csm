@@ -24,7 +24,7 @@ class IDataset(Dataset):
         self.flip = config.flip
         self.device = device
 
-        self.mean_shape, self.template_mesh = self._get_template_info()
+        self.mean_shape, self.template_mesh, self.texture_map = self._get_template_info()
         self.kp_3d, self.kp_uv, self.kp_names, self.kp_perm = self.load_key_points()
 
     def __len__(self):

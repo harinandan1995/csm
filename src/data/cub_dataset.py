@@ -2,11 +2,14 @@ import os.path as osp
 
 import numpy as np
 import scipy.io as sio
-from pytorch3d.io import load_objs_as_meshes
+import torch
+import trimesh
+from PIL import Image
+from pytorch3d.structures import Meshes, Textures
 
 from src.data import transformations
 from src.data.dataset import IDataset
-from src.nnutils.geometry import load_mean_shape
+from src.nnutils.geometry import load_mean_shape, convert_3d_to_uv_coordinates
 from src.utils.utils import validate_paths
 
 
@@ -34,10 +37,39 @@ class CubDataset(IDataset):
 
     def _get_template_info(self):
 
-        mean_shape = load_mean_shape(osp.join(self.cache_dir, 'uv', 'mean_shape.mat'))
-        template_mesh = load_objs_as_meshes([self.config.dir.template], device=self.device)
+        mean_shape = load_mean_shape(osp.join(self.cache_dir, 'uv', 'mean_shape.mat'), device=self.device)
 
-        return mean_shape, template_mesh
+        texture_map = self._get_texture_map(self.config.dir.texture)
+        mesh = trimesh.load(self.config.dir.template, 'obj')
+        vertices = torch.from_numpy(np.asarray(mesh.vertices)).to(torch.float)
+        faces = torch.from_numpy(np.asarray(mesh.faces)).to(torch.long)
+        template_texture = self._get_template_texture(vertices, faces, texture_map)
+
+        template_mesh = Meshes(verts=[vertices], faces=[faces], textures=template_texture).to(self.device)
+
+        return mean_shape, template_mesh, texture_map
+
+    @staticmethod
+    def _get_template_texture(vertices, faces, texture_map):
+
+        verts_uv = convert_3d_to_uv_coordinates(vertices)
+        vertex_rgb = torch.nn.functional.grid_sample(texture_map.unsqueeze(0),
+                                                     2 * verts_uv.unsqueeze(0).unsqueeze(0) - 1)
+        vertex_rgb = vertex_rgb.squeeze(2).permute(0, 2, 1) * 255
+        texture = Textures([texture_map.permute(1, 2, 0)],
+                           faces_uvs=faces.unsqueeze(0),
+                           verts_uvs=verts_uv.unsqueeze(0),
+                           verts_rgb=vertex_rgb)
+
+        return texture
+
+    @staticmethod
+    def _get_texture_map(img_path):
+
+        texture_map = Image.open(img_path).resize((256, 256), Image.ANTIALIAS)
+        texture_map = torch.from_numpy(np.asarray(texture_map)).permute(2, 0, 1)
+
+        return texture_map.to(dtype=torch.float) / 255
 
     def load_key_points(self):
 
