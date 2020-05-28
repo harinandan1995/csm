@@ -3,7 +3,7 @@ import os.path as osp
 import torch
 
 from torch.utils.tensorboard import SummaryWriter
-from src.utils.utils import get_date, get_time
+from src.utils.utils import get_date, get_time, create_dir_if_not_exists
 
 
 class ITrainer:
@@ -34,7 +34,12 @@ class ITrainer:
         self.data_loader = self._get_data_loader()
         self.optimizer = self._get_optimizer(config)
 
-        self.summary_dir = osp.join(self.config.out_dir, 'summaries', get_date(), get_time())
+        time = get_time()
+        date = get_date()
+        self.summary_dir = osp.join(self.config.out_dir, date, time, 'summaries')
+        self.checkpoint_dir = osp.join(self.config.out_dir, date, time, 'checkpoints')
+        create_dir_if_not_exists(self.checkpoint_dir)
+
         self.summary_writer = SummaryWriter(self.summary_dir)
 
     def train(self):
@@ -72,7 +77,7 @@ class ITrainer:
 
         if path is not None and path != '':
             torch.save(self.model.state_dict(), path)
-            print('Saving model at %s' % path)
+            print('Saving model weights at %s' % path)
 
     def _load_model(self, path):
         """
@@ -83,7 +88,7 @@ class ITrainer:
 
         if path is not None and path != '' and osp.exists(path):
             self.model.load_state_dict(torch.load(path))
-            print('Loaded model from %s' % path)
+            print('Loaded model weights from %s' % path)
 
     def _train_step(self, step, batch, epoch):
         """

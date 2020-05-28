@@ -1,10 +1,12 @@
 import torch
 
 
-def geometric_cycle_consistency_loss(gt_2d_pos_grid, pred_positions, mask):
+def geometric_cycle_consistency_loss(gt_2d_pos_grid, pred_positions, mask, reduction='mean'):
     """
     Calculates the 2D l2 loss between the predicted 2D positions and ground truth positions
 
+    :param reduction: 'reduction' - mean value is returned.
+        'none' - tensor of shape same as the input is returned
     :param gt_2d_pos_grid: (1 x 1 x 2 x H X W) - The ground truth positions with values between -
     1 to 1 along both the axis.
     :param pred_positions: (B X CP X 2 X H X W) - The predicted 2D positions in camera frame
@@ -15,7 +17,7 @@ def geometric_cycle_consistency_loss(gt_2d_pos_grid, pred_positions, mask):
     gt = torch.mul(mask.unsqueeze(1), gt_2d_pos_grid)
     pred = torch.mul(mask.unsqueeze(1), pred_positions)
 
-    return torch.nn.functional.mse_loss(gt, pred)
+    return torch.nn.functional.mse_loss(gt, pred, reduction=reduction)
 
 
 def visibility_constraint_loss(pred_depths, pred_z, mask):

@@ -1,16 +1,14 @@
 import os.path as osp
 
-import numpy as np
 import torch.utils.data
-from PIL import Image
 
 from src.data.cub_dataset import CubDataset
 from src.estimators.trainer import ITrainer
 from src.model.csm import CSM
 from src.nnutils.color_transform import sample_uv_contour
-from src.nnutils.geometry import get_gt_positions_grid
+from src.nnutils.geometry import get_gt_positions_grid, convert_3d_to_uv_coordinates
 from src.nnutils.losses import *
-from src.utils.utils import get_date, get_time, create_dir_if_not_exists
+from src.utils.utils import get_time
 
 
 class CSMTrainer(ITrainer):
@@ -45,17 +43,15 @@ class CSMTrainer(ITrainer):
         self.gt_2d_pos_grid = get_gt_positions_grid(
             (config.dataset.img_size, config.dataset.img_size)).to(self.device).permute(2, 0, 1)
         self.gt_2d_pos_grid = self.gt_2d_pos_grid.unsqueeze(0).unsqueeze(0)
-        self.texture_map = self._get_texture_map(config.dataset.dir.texture)
 
         super(CSMTrainer, self).__init__(config.train)
 
+        self.texture_map = self.dataset.texture_map
         self.template_mesh = self.dataset.template_mesh
+        template_mesh_colors = self._get_template_mesh_colors()
         self.summary_writer.add_mesh('Template', self.template_mesh.verts_packed().unsqueeze(0),
-                                     faces=self.template_mesh.faces_packed().unsqueeze(0))
-
-        self.checkpoint_dir = osp.join(self.config.out_dir, "checkpoints",
-                                       get_date(), get_time())
-        create_dir_if_not_exists(self.checkpoint_dir)
+                                     faces=self.template_mesh.faces_packed().unsqueeze(0),
+                                     colors=template_mesh_colors)
 
     def _calculate_loss(self, step, batch, epoch):
         """
@@ -97,19 +93,21 @@ class CSMTrainer(ITrainer):
         # loss += mask_reprojection_loss(mask, pred_masks)
         # loss += diverse_loss(pred_poses)
 
-        self._add_summaries(step, epoch, uv, uv_3d, img, mask, pred_depths, pred_masks)
+        self._add_summaries(step, epoch, uv, uv_3d, img, mask,
+                            pred_positions, pred_depths, pred_masks)
 
         return loss
 
     def _epoch_end_call(self, current_epoch, total_epochs):
         # Save checkpoint after every 10 epochs
-        if current_epoch % 10 == 0:
+        if current_epoch % 5 == 0:
             self._save_model(osp.join(self.checkpoint_dir,
                                       'model_%s_%d' % (get_time(), current_epoch)))
 
     def _batch_end_call(self, batch, loss, step, total_steps, epoch, total_epochs):
         # Print the loss at the end of each batch
-        print('%d:%d/%d loss %f' % (epoch, step, total_steps, loss))
+        if step % 10 == 0:
+            print('%d:%d/%d loss %f' % (epoch, step, total_steps, loss))
 
     def _get_data_loader(self):
 
@@ -139,7 +137,7 @@ class CSMTrainer(ITrainer):
 
         return model
 
-    def _add_summaries(self, step, epoch, uv, uv_3d, img, mask, pred_depths, pred_masks):
+    def _add_summaries(self, step, epoch, uv, uv_3d, img, mask, pred_positions, pred_depths, pred_masks):
         """
         Adds image summaries to the summary writer
 
@@ -157,6 +155,10 @@ class CSMTrainer(ITrainer):
 
         if step % 20 == 0:
 
+            loss_values = torch.mean(geometric_cycle_consistency_loss(
+                self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2)
+            loss_values = loss_values / 0.1
+            self.summary_writer.add_images('%d/out/loss' % epoch, loss_values, step % 20)
             uv_color, uv_blend = sample_uv_contour(img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
             self.summary_writer.add_images('%d/out/img' % epoch, img, step % 20)
             self.summary_writer.add_images('%d/out/mask' % epoch, mask, step % 20)
@@ -165,9 +167,13 @@ class CSMTrainer(ITrainer):
             self.summary_writer.add_images('%d/out/depth' % epoch, pred_depths, step % 20)
             self.summary_writer.add_images('%d/out/pred_mask' % epoch, pred_masks, step % 20)
 
-    def _get_texture_map(self, img_path):
+    def _get_template_mesh_colors(self):
 
-        texture_map = Image.open(img_path).resize((256, 256), Image.ANTIALIAS)
-        texture_map = torch.from_numpy(np.asarray(texture_map)).permute(2, 0, 1)
+        vertices = self.template_mesh.verts_packed()
+        vertices_uv = convert_3d_to_uv_coordinates(vertices)
+        colors = torch.nn.functional.grid_sample(self.texture_map.unsqueeze(0),
+                                                 2*vertices_uv.unsqueeze(0).unsqueeze(0)-1)
 
-        return texture_map.to(self.device, dtype=torch.float) / 255
+        colors = colors.squeeze(2).permute(0, 2, 1) * 255
+
+        return colors.to(torch.int)
