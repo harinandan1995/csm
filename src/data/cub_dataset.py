@@ -15,7 +15,7 @@ from src.utils.utils import validate_paths
 
 class CubDataset(IDataset):
 
-    def __init__(self, config, device='cuda:0'):
+    def __init__(self, config, device='cuda'):
 
         self.cache_dir = config.dir.cache_dir
         self.data_dir = config.dir.data_dir
@@ -47,7 +47,7 @@ class CubDataset(IDataset):
 
         template_mesh = Meshes(verts=[vertices], faces=[faces], textures=template_texture).to(self.device)
 
-        return mean_shape, template_mesh, texture_map
+        return mean_shape, template_mesh, texture_map.to(self.device)
 
     @staticmethod
     def _get_template_texture(vertices, faces, texture_map):

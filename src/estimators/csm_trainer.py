@@ -164,7 +164,8 @@ class CSMTrainer(ITrainer):
             self.summary_writer.add_images('%d/out/mask' % epoch, mask, step % 20)
             self.summary_writer.add_images('%d/out/uv_blend' % epoch, uv_blend, step % 20)
             self.summary_writer.add_images('%d/out/uv' % epoch, uv_color * mask, step % 20)
-            self.summary_writer.add_images('%d/out/depth' % epoch, pred_depths, step % 20)
+            depth = (pred_depths - pred_depths.min())/(pred_depths.max()-pred_depths.min())
+            self.summary_writer.add_images('%d/out/depth' % epoch, depth, step % 20)
             self.summary_writer.add_images('%d/out/pred_mask' % epoch, pred_masks, step % 20)
 
     def _get_template_mesh_colors(self):

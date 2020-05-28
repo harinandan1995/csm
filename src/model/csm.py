@@ -85,6 +85,7 @@ class CSM(torch.nn.Module):
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
             sphere_points, rotation, translation)
         pred_mask, depth = self.depth_render(self.template_mesh.extend(img.size(0)), rotation, translation)
+        depth[depth < 0] = depth.max()+1
 
         out = {
             "pred_positions": pred_pos,
