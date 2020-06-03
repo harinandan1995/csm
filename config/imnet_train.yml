@@ -1,4 +1,5 @@
 dataset:
+  category: 'bird'
   img_size: 256
   img_height: 320
   img_width: 512
@@ -13,14 +14,9 @@ dataset:
   num_kps: 15
 
   dir:
-    texture: 'resources/color_maps/bird/map3.png'
-    template: './datasets/cachedir/cub/model/mean_bird_fixed.obj'
-    data_dir: './datasets/CUB_200_2011'
-    cache_dir: './datasets/cachedir/cub'
-
-  dataloader:
-    dataset: 'cub'
-    batch_size: 64
+    texture: 'resources/color_maps/horse/map3.png'
+    data_dir: './datasets/IMAGENET'
+    cache_dir: './datasets/cachedir/'
 
 train:
   batch_size: 5

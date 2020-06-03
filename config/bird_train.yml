@@ -1,0 +1,37 @@
+dataset:
+  category: 'bird'
+  img_size: 256
+  img_height: 320
+  img_width: 512
+  split: 'train'
+  transform: 'flip'
+  padding_frac: 0.05
+  jitter_frac: 0.05
+  flip: True
+  tight_crop: False
+  flip_train: True
+  num_pairs: 10000
+  num_kps: 15
+
+  dir:
+    texture: 'resources/color_maps/bird/map3.png'
+    template: './datasets/cachedir/cub/model/mean_bird_fixed.obj'
+    data_dir: './datasets/CUB_200_2011'
+    cache_dir: './datasets/cachedir/cub'
+
+train:
+  batch_size: 5
+  epochs: 100
+  shuffle: True
+  workers: 0
+  checkpoint: ''
+  out_dir: './out'
+  use_gt_cam: False
+  loss:
+    geometric: 1
+    visibility: 10
+    mask: 2
+  optim:
+    lr: 0.00006
+    beta1: 0.9
+    type: 'adam'

@@ -4,23 +4,24 @@ import torch.utils.data
 
 from src.scripts.test import start_test
 from src.scripts.train import start_train
+from src.utils.utils import add_train_arguments, add_test_arguments
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-m', '--mode',
-                    help='Allowed values: train, test.'
-                         ' train: start training the model.'
-                         ' test: test the model.'
-                         ' Default value is train',
-                    default='train',
-                    choices=['train', 'test'])
-
 parser.add_argument('-c', '--config',
-                    help='Path to the config file. Default is config/train.yml.',
-                    default='config/train.yml')
+                    help='Path to the config file. Default is config/bird_train.yml.',
+                    default='config/bird_train.yml', required=False)
 
 parser.add_argument('-d', '--device',
                     help='Device to be used by pytorch',
-                    default='cuda:0')
+                    default='cuda:0', required=False)
+
+sub_parsers = parser.add_subparsers(help='Train or Test', dest='mode')
+
+train_parser = sub_parsers.add_parser('train', help='Use this to start training a model')
+train_parser = add_train_arguments(train_parser)
+
+test_parser = sub_parsers.add_parser('test', help='Use this to start testing the model')
+test_parser = add_test_arguments(test_parser)
 
 args = parser.parse_args()
 
@@ -30,11 +31,9 @@ if __name__ == '__main__':
         torch.cuda.get_device_name(),
         torch.cuda.current_device()))
 
-    print(args)
-
     if args.mode == 'train':
         print('Starting the training........')
-        start_train(args.config, args.device)
+        start_train(args.config, args.__dict__, args.device)
     else:
         print('Starting the testing........')
         start_test(args.config)

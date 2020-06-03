@@ -1,5 +1,6 @@
 import yaml
 import os
+import re
 
 
 class ConfigParser:
@@ -41,20 +42,22 @@ class ConfigParser:
         def __setattr__(self, name, val):
             self[name] = val
 
-    def __init__(self, config_file, schema=None):
+    def __init__(self, config_file, args=None):
 
         """
         :param config_file: Path to the config file
-        :param schema: Optional. Path to the schema file
+        :param args: Optional. Arguments passed via command line
         """
 
         self.config_file = config_file
-        self.schema = schema
-
         self._check_files()
+
+        self.pattern = re.compile(r"^([0-9a-zA-Z]+_*[0-9a-zA-Z]*.)*([0-9a-zA-Z]+_*[0-9a-zA-Z]*)+$")
 
         with open(self.config_file) as file:
             self.config_dict = yaml.load(file, Loader=yaml.FullLoader)
+
+        self._update_with_args(args)
 
         self.config = self._create_config_object(self.config_dict)
 
@@ -68,6 +71,28 @@ class ConfigParser:
         else:
             return config_dict
 
+    def _update_dict_for_nested_key(self, dictionary, key: str, value):
+
+        if "." not in key:
+            dictionary[key] = value
+        else:
+            key_1, key_2 = key.split('.', 1)
+            if key_1 not in dictionary:
+                dictionary[key_1] = {}
+
+            self._update_dict_for_nested_key(dictionary[key_1], key_2, value)
+
+    def _update_with_args(self, args):
+
+        if args is None:
+            return
+
+        for param, value in args.items():
+            if value is None:
+                continue
+            if self.pattern.fullmatch(param):
+                self._update_dict_for_nested_key(self.config_dict, param, value)
+
     def _check_files(self):
         """
         Checks if the config and schema files exist
@@ -75,6 +100,3 @@ class ConfigParser:
 
         if self.config_file is not None and not os.path.exists(self.config_file):
             return FileNotFoundError('%s file does not exist' % self.config_file)
-
-        if self.schema is not None and not os.path.exists(self.schema):
-            return FileNotFoundError('%s file does not exist' % self.schema)
