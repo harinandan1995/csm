@@ -28,9 +28,9 @@ def visibility_constraint_loss(pred_depths, pred_z, mask):
     loss = max(0, z-depth)
 
     :param pred_depths: Depths rendered either by the predicted camera poses
-    or the ground truth camera pose (B X CP X W X H)
-    :param pred_z: Z values for the predicted positions in camera frame (B X CP X W X H)
-    :param mask: Ground truth foreground mask (B X W X H)
+    or the ground truth camera pose (B X CP X 1 X W X H)
+    :param pred_z: Z values for the predicted positions in camera frame (B X CP X 1 X W X H)
+    :param mask: Ground truth foreground mask (B X 1 X W X H)
     :return: The visibility constraint loss
     """
 
@@ -45,13 +45,13 @@ def mask_reprojection_loss(mask, pred_masks):
     Calculates the mask re-projection loss (L2) between the ground truth mask and the
     masks rendered for the predicted camera poses.
 
-    :param mask: The ground truth mask (B X W X H)
-    :param pred_masks: The rendered masks (B X CP X W X H)
+    :param mask: The ground truth mask (B X 1 X W X H)
+    :param pred_masks: The rendered masks (B X CP X 1 X W X H)
 
     :return: The mask re-projection loss
     """
 
-    extended_mask = mask.view(mask.shape[0], 1, mask.shape[1], mask.shape[2])
+    extended_mask = mask.unsqueeze(1)
 
     return torch.nn.functional.mse_loss(extended_mask, pred_masks)
 

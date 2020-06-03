@@ -34,8 +34,8 @@ def convert_3d_to_uv_coordinates(points):
     """
     Converts 3D points to UV parameters
 
-    :param points: A (None, 3) tensor/numpy array of 3d points
-    :return: A (None, 2) tensor/np array of Uv values for the points
+    :param points: A (..., 3) tensor/ (None, 3) np array of 3d points
+    :return: A (..., 2) tensor/ (None, 3) np array of UV values for the points
     """
     eps = 1E-4
     if type(points) == torch.Tensor:
@@ -78,8 +78,7 @@ def get_scaled_orthographic_projection(scale, trans, quat, device='cuda'):
     scale_matrix[:, 1, 1] = scale
     scale_matrix[:, 2, 2] = scale
     
-    rotation = quaternion_to_matrix(quat).permute(0, 2, 1)
-    # TODO: Move the transpose to the CSM model
+    rotation = quaternion_to_matrix(quat)
     rotation = torch.matmul(scale_matrix, rotation)
     
     return rotation, translation

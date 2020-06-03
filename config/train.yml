@@ -26,9 +26,10 @@ train:
   batch_size: 5
   epochs: 100
   shuffle: True
-  workers: 10
+  workers: 0
   checkpoint: ''
   out_dir: './out'
+  use_gt_cam: False
   optim:
     lr: 0.00006
     beta1: 0.9

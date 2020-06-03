@@ -33,7 +33,7 @@ class CameraPredictor(nn.Module):
     and translation vector based on an image.
     """
 
-    def __init__(self, device, num_feats, feature_extractor=None):
+    def __init__(self, device, num_feats=512, feature_extractor=None):
         """
 
         :param device: The device on which the computation is performed. Usually CUDA.
@@ -52,7 +52,7 @@ class CameraPredictor(nn.Module):
             self.encoder = feature_extractor
 
         self.fc = nn.Linear(num_feats, 256)
-        self.fc2 = nn.Linear(256, 8)
+        self.fc2 = nn.Linear(256, 7)
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
@@ -62,24 +62,24 @@ class CameraPredictor(nn.Module):
         :return: A 3-tuple containing the following tensors. (N = batch size)
                 scale: N X 1 vector, containing the scale factors.
                 translate: N X 3 matrix, containing the translation vectors for each sample
-                rotate: N X 4 matrix, containing the quaternions representing the rotation for each sample.
+                quat: N X 4 matrix, containing the quaternions representing the rotation for each sample.
                     the quaternions are mapped to the rotation matrix outside of this forward pass.
         """
         x = self.encoder(x)
         if self.avg_pool:
             x = self.avg_pool(x)
 
-        x = x.squeeze(-1).squeeze(-1)  # convert NXCx1x1 tensor to a NXC vector
+        x = x.squeeze()  # convert NXCx1x1 tensor to a NXC vector
         x = self.fc(x)
         x = F.leaky_relu(x)
         x = self.fc2(x)
 
         # predicted cam_params
         scale = x[..., 0]
-        translate = x[..., 1:3 + 1]
-        rotate = x[..., 4:]
+        translate = x[..., 1:3]
+        quat = x[..., 3:]
 
-        return scale, translate, rotate
+        return scale, translate, quat
 
 
 class MultiCameraPredictor(nn.Module):

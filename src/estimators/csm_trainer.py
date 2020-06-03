@@ -8,6 +8,7 @@ from src.model.csm import CSM
 from src.nnutils.color_transform import sample_uv_contour
 from src.nnutils.geometry import get_gt_positions_grid, convert_3d_to_uv_coordinates
 from src.nnutils.losses import *
+from src.utils.config import ConfigParser
 from src.utils.utils import get_time
 
 
@@ -23,7 +24,7 @@ class CSMTrainer(ITrainer):
 
     """
 
-    def __init__(self, config, device='cuda'):
+    def __init__(self, config: ConfigParser.ConfigObject, device='cuda'):
         """
         :param config: A dictionary containing the following parameters
             template: Path to the mesh template for the data as an obj file
@@ -52,6 +53,10 @@ class CSMTrainer(ITrainer):
         self.summary_writer.add_mesh('Template', self.template_mesh.verts_packed().unsqueeze(0),
                                      faces=self.template_mesh.faces_packed().unsqueeze(0),
                                      colors=template_mesh_colors)
+        self.running_loss_1 = 0
+        self.running_loss_2 = 0
+        self.running_loss_3 = 0
+        self.running_loss_4 = 0
 
     def _calculate_loss(self, step, batch, epoch):
         """
@@ -80,34 +85,67 @@ class CSMTrainer(ITrainer):
 
         pred_out = self.model(img, mask, scale, trans, quat)
 
-        uv = pred_out["uv"]
-        uv_3d = pred_out["uv_3d"]
-        pred_positions = pred_out['pred_positions']
-        pred_depths = pred_out['pred_depths']
         pred_z = pred_out['pred_z']
-        # pred_poses = pred_out['pred_poses']
+        pred_poses = pred_out['pred_poses']
         pred_masks = pred_out['pred_masks']
+        pred_depths = pred_out['pred_depths']
+        pred_positions = pred_out['pred_positions']
 
-        loss = geometric_cycle_consistency_loss(self.gt_2d_pos_grid, pred_positions, mask)
-        loss += 0.001 * visibility_constraint_loss(pred_depths, pred_z, mask)
-        # loss += mask_reprojection_loss(mask, pred_masks)
-        # loss += diverse_loss(pred_poses)
+        loss = self._calculate_loss_for_predictions(mask, pred_positions, pred_masks, pred_depths, pred_z)
 
-        self._add_summaries(step, epoch, uv, uv_3d, img, mask,
-                            pred_positions, pred_depths, pred_masks)
+        return loss, pred_out
+
+    def _calculate_loss_for_predictions(self, mask, pred_positions, pred_masks, pred_depths, pred_z):
+
+        loss_1 = geometric_cycle_consistency_loss(self.gt_2d_pos_grid, pred_positions, mask)
+        self.running_loss_1 += loss_1
+        loss_2 = visibility_constraint_loss(pred_depths, pred_z, mask)
+        self.running_loss_2 += loss_2
+
+        if not self.config.use_gt_cam:
+            loss_3 = mask_reprojection_loss(mask, pred_masks)
+            self.running_loss_3 += loss_3
+            # loss_4 = diverse_loss(pred_poses)
+        else:
+            loss_3 = 0
+            loss_4 = 0
+
+        loss = loss_1 + 0.001 * loss_2 + 0.01 * loss_3
 
         return loss
 
-    def _epoch_end_call(self, current_epoch, total_epochs):
+    def _epoch_end_call(self, current_epoch, total_epochs, total_steps):
         # Save checkpoint after every 10 epochs
         if current_epoch % 5 == 0:
             self._save_model(osp.join(self.checkpoint_dir,
                                       'model_%s_%d' % (get_time(), current_epoch)))
 
-    def _batch_end_call(self, batch, loss, step, total_steps, epoch, total_epochs):
+        self.summary_writer.add_scalar('loss/geometric', self.running_loss_1 / total_steps, current_epoch)
+        self.summary_writer.add_scalar('loss/visibility', self.running_loss_2 / total_steps, current_epoch)
+        self.summary_writer.add_scalar('loss/mask', self.running_loss_3 / total_steps, current_epoch)
+
+        self.running_loss_1 = 0
+        self.running_loss_2 = 0
+        self.running_loss_3 = 0
+        self.running_loss_4 = 0
+
+    def _batch_end_call(self, batch, loss, out, step, total_steps, epoch, total_epochs):
         # Print the loss at the end of each batch
         if step % 10 == 0:
             print('%d:%d/%d loss %f' % (epoch, step, total_steps, loss))
+
+        uv = out["uv"]
+        uv_3d = out["uv_3d"]
+        pred_z = out['pred_z']
+        pred_masks = out['pred_masks']
+        pred_depths = out['pred_depths']
+        pred_positions = out['pred_positions']
+
+        img = batch['img'].to(self.device, dtype=torch.float)
+        mask = batch['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
+
+        self._add_summaries(step, epoch, uv, uv_3d, img, mask,
+                            pred_positions, pred_depths, pred_z, pred_masks)
 
     def _get_data_loader(self):
 
@@ -133,23 +171,28 @@ class CSMTrainer(ITrainer):
         """
 
         model = CSM(self.dataset.template_mesh,
-                    self.dataset.mean_shape, self.device).to(self.device)
+                    self.dataset.mean_shape,
+                    self.config.use_gt_cam,
+                    self.device).to(self.device)
 
         return model
 
-    def _add_summaries(self, step, epoch, uv, uv_3d, img, mask, pred_positions, pred_depths, pred_masks):
+    def _add_summaries(self, step, epoch, uv, uv_3d, img, mask, pred_positions,
+                       pred_depths, pred_z, pred_masks):
         """
         Adds image summaries to the summary writer
 
         :param step: Current optimization step number (Batch number)
         :param epoch: Current epoch
         :param uv: A (B X 2 X H X W) tensor of UV values for the batch
-        :param uv_3d: A (B X None X 3) tensor of 3D coordinates for the UV values
+        :param uv_3d: A (B X H X W X 3) tensor of 3D coordinates for the UV values
         :param img: A (B X 3 X H X W) tensor of input image
         :param mask: A (B X 1 X H X W) tensor of input foreground mask
-        :param pred_depths: A (B X 3 X H X W) tensor of depths rendered with the
+        :param pred_depths: A (B X CP X 1 X H X W) tensor of depths rendered with the
             gt. camera pose /predicted camera poses (if config.use_gt_cam_pose) is true
-        :param pred_masks: A (B X 3 X H X W) tensor of masks  rendered with the
+        :param pred_z: A (B X CP X 1 X H X W) tensor of z values of the projected 3D points
+            for the predicted UV values
+        :param pred_masks: A (B X CP X 1 X H X W) tensor of masks  rendered with the
             gt. camera pose /predicted camera poses
         """
 
@@ -159,14 +202,24 @@ class CSMTrainer(ITrainer):
                 self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2)
             loss_values = loss_values / 0.1
             self.summary_writer.add_images('%d/out/loss' % epoch, loss_values, step % 20)
+
             uv_color, uv_blend = sample_uv_contour(img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
             self.summary_writer.add_images('%d/out/img' % epoch, img, step % 20)
             self.summary_writer.add_images('%d/out/mask' % epoch, mask, step % 20)
             self.summary_writer.add_images('%d/out/uv_blend' % epoch, uv_blend, step % 20)
             self.summary_writer.add_images('%d/out/uv' % epoch, uv_color * mask, step % 20)
+
             depth = (pred_depths - pred_depths.min())/(pred_depths.max()-pred_depths.min())
-            self.summary_writer.add_images('%d/out/depth' % epoch, depth, step % 20)
-            self.summary_writer.add_images('%d/out/pred_mask' % epoch, pred_masks, step % 20)
+            z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
+            self.summary_writer.add_images('%d/out/depth' % epoch,
+                                           depth.view(-1, 1, depth.size(-2), depth.size(-1)),
+                                           step % 20)
+            self.summary_writer.add_images('%d/out/z' % epoch,
+                                           z.view(-1, 1, z.size(-2), z.size(-1)),
+                                           step % 20)
+            self.summary_writer.add_images('%d/out/pred_mask' % epoch,
+                                           pred_masks.view(-1, 1, pred_masks.size(-2), pred_masks.size(-1)),
+                                           step % 20)
 
     def _get_template_mesh_colors(self):
 
