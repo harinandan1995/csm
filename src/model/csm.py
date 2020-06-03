@@ -178,7 +178,7 @@ class CSM(torch.nn.Module):
         width = pred_mask.size(1)
 
         pred_mask = pred_mask.view(batch_size, cam_poses, 1, height, width)
-        pred_depth = pred_mask.view(batch_size, cam_poses, 1, height, width)
+        pred_depth = pred_depth.view(batch_size, cam_poses, 1, height, width)
 
         # Pytorch renderer returns -1 values for the empty pixels which
         # when directly used results in wrong loss calculation so changing the values to the max + 1

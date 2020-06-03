@@ -30,6 +30,10 @@ train:
   checkpoint: ''
   out_dir: './out'
   use_gt_cam: False
+  loss:
+    geometric: 1
+    visibility: 10
+    mask: 2
   optim:
     lr: 0.00006
     beta1: 0.9

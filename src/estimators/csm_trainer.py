@@ -110,7 +110,9 @@ class CSMTrainer(ITrainer):
             loss_3 = 0
             loss_4 = 0
 
-        loss = loss_1 + 0.001 * loss_2 + 0.01 * loss_3
+        loss = self.config.loss.geometric * loss_1
+        loss += self.config.loss.visibility * loss_2
+        loss += self.config.loss.mask * loss_3
 
         return loss
 
