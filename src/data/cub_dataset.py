@@ -2,14 +2,10 @@ import os.path as osp
 
 import numpy as np
 import scipy.io as sio
-import torch
-import trimesh
-from PIL import Image
-from pytorch3d.structures import Meshes, Textures
 
-from src.data import transformations
 from src.data.dataset import IDataset
-from src.nnutils.geometry import load_mean_shape, convert_3d_to_uv_coordinates
+from src.data.utils import transformations
+from src.nnutils.geometry import load_mean_shape
 from src.utils.utils import validate_paths
 
 
@@ -17,12 +13,9 @@ class CubDataset(IDataset):
 
     def __init__(self, config, device='cuda'):
 
-        self.cache_dir = config.dir.cache_dir
-        self.data_dir = config.dir.data_dir
-        self.img_dir = osp.join(self.data_dir, 'images')
-
         super(CubDataset, self).__init__(config, device)
 
+        self.img_dir = osp.join(config.dir.data_dir, 'images')
         self.anno = []
         self.anno_sfm = []
         self.num_samples = 0
@@ -35,41 +28,12 @@ class CubDataset(IDataset):
 
         return self.num_samples
 
-    def _get_template_info(self):
+    def _get_mean_shape(self):
 
-        mean_shape = load_mean_shape(osp.join(self.cache_dir, 'uv', 'mean_shape.mat'), device=self.device)
+        mean_shape = load_mean_shape(
+            osp.join(self.config.dir.cache_dir, 'uv', 'mean_shape.mat'), device=self.device)
 
-        texture_map = self._get_texture_map(self.config.dir.texture)
-        mesh = trimesh.load(self.config.dir.template, 'obj')
-        vertices = torch.from_numpy(np.asarray(mesh.vertices)).to(torch.float)
-        faces = torch.from_numpy(np.asarray(mesh.faces)).to(torch.long)
-        template_texture = self._get_template_texture(vertices, faces, texture_map)
-
-        template_mesh = Meshes(verts=[vertices], faces=[faces], textures=template_texture).to(self.device)
-
-        return mean_shape, template_mesh, texture_map.to(self.device)
-
-    @staticmethod
-    def _get_template_texture(vertices, faces, texture_map):
-
-        verts_uv = convert_3d_to_uv_coordinates(vertices)
-        vertex_rgb = torch.nn.functional.grid_sample(texture_map.unsqueeze(0),
-                                                     2 * verts_uv.unsqueeze(0).unsqueeze(0) - 1)
-        vertex_rgb = vertex_rgb.squeeze(2).permute(0, 2, 1) * 255
-        texture = Textures([texture_map.permute(1, 2, 0)],
-                           faces_uvs=faces.unsqueeze(0),
-                           verts_uvs=verts_uv.unsqueeze(0),
-                           verts_rgb=vertex_rgb)
-
-        return texture
-
-    @staticmethod
-    def _get_texture_map(img_path):
-
-        texture_map = Image.open(img_path).resize((256, 256), Image.ANTIALIAS)
-        texture_map = torch.from_numpy(np.asarray(texture_map)).permute(2, 0, 1)
-
-        return texture_map.to(dtype=torch.float) / 255
+        return mean_shape
 
     def load_key_points(self):
 
@@ -77,7 +41,7 @@ class CubDataset(IDataset):
         kp_names = ['Back', 'Beak', 'Belly', 'Breast', 'Crown', 'FHead', 'LEye',
                     'LLeg', 'LWing', 'Nape', 'REye', 'RLeg', 'RWing', 'Tail', 'Throat']
 
-        anno_train_sfm_path = osp.join(self.cache_dir, 'sfm', 'anno_%s.mat' % 'train')
+        anno_train_sfm_path = osp.join(self.config.dir.cache_dir, 'sfm', 'anno_%s.mat' % 'train')
         validate_paths(anno_train_sfm_path)
 
         kp_3d = sio.loadmat(anno_train_sfm_path, struct_as_record=False, squeeze_me=True)['S'].transpose().copy()
@@ -88,22 +52,6 @@ class CubDataset(IDataset):
             self.mean_shape['verts'].cpu().numpy())
 
         return kp_3d, kp_uv, kp_names, kp_perm
-
-    def load_data(self):
-
-        cache_dir = self.cache_dir
-
-        anno_path = osp.join(cache_dir, 'data', '%s_cub_cleaned.mat' % self.config.split)
-        anno_sfm_path = osp.join(cache_dir, 'sfm', 'anno_%s.mat' % self.config.split)
-
-        validate_paths(anno_path, anno_sfm_path)
-
-        # Load the annotation file.
-        print('loading %s' % anno_path)
-        self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
-        self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
-
-        self.num_samples = len(self.anno)
 
     def get_data(self, index):
 
@@ -118,6 +66,22 @@ class CubDataset(IDataset):
         parts = data.parts.T.astype(float)
 
         return data.bbox, data.mask, parts, sfm_pose, img_path
+
+    def load_data(self):
+
+        cache_dir = self.config.dir.cache_dir
+
+        anno_path = osp.join(cache_dir, 'data', '%s_cub_cleaned.mat' % self.config.split)
+        anno_sfm_path = osp.join(cache_dir, 'sfm', 'anno_%s.mat' % self.config.split)
+
+        validate_paths(anno_path, anno_sfm_path)
+
+        # Load the annotation file.
+        print('loading %s' % anno_path)
+        self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
+        self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
+
+        self.num_samples = len(self.anno)
 
     def get_img_data(self, index):
         """

@@ -23,12 +23,12 @@ dataset:
     batch_size: 64
 
 train:
-  batch_size: 16
+  batch_size: 32
   epochs: 100
   shuffle: True
   workers: 8
   checkpoint: ''
-  out_dir: './out'
+  out_dir: '/mnt/raid/csmteam/out'
   use_gt_cam: False
   loss:
     geometric: 1

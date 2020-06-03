@@ -1,7 +1,7 @@
 import torch
 from pytorch3d.structures import Meshes
 
-from src.model.camera_pose_predictor import CameraPredictor
+from src.model.cam_predictor import CameraPredictor
 from src.model.unet import UNet
 from src.model.uv_to_3d import UVto3D
 from src.nnutils.geometry import get_scaled_orthographic_projection, convert_3d_to_uv_coordinates
