@@ -14,4 +14,3 @@ def get_sysnet_id_for_imnet_class(imnet_class):
         return imnet_class2sysnet[imnet_class]
     else:
         raise ValueError('Image net class %s not found' % imnet_class)
-

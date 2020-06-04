@@ -118,6 +118,12 @@ class IDataset(Dataset):
 
         :param index: index of the sample required
         :return: tuple (bbox, mask, parts, pose, img_path)
+            bbox - A np array of shape [4] with the x1, y1, x2, y2 coordinates of the bounding box
+            mask - (H X W) numpy array. Foreground mask
+            parts - (KP X 3) numpy array containing the 2D positions of the keypoints on the image and
+                a value showing whether or not the key point is visible in the image.
+            sfm_pose - A list of 3 numpy arrays of shapes (), (2,), (4,) with scale, translation and quaternions
+            img_path - Path to image
         """
 
         raise NotImplementedError('get_items method should be implemented in the child class')

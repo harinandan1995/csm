@@ -22,9 +22,6 @@ class CubDataset(IDataset):
         self.load_data()
 
     def __len__(self):
-        """
-        :return: number of images
-        """
 
         return self.num_samples
 
@@ -65,7 +62,9 @@ class CubDataset(IDataset):
         sfm_pose[2] = transformations.quaternion_from_matrix(sfm_rot, isprecise=True)
         parts = data.parts.T.astype(float)
 
-        return data.bbox, data.mask, parts, sfm_pose, img_path
+        bbox = np.array([data.bbox.x1, data.bbox.y1, data.bbox.x2, data.bbox.y2], float) - 1
+
+        return bbox, data.mask, parts, sfm_pose, img_path
 
     def load_data(self):
 
@@ -77,7 +76,7 @@ class CubDataset(IDataset):
         validate_paths(anno_path, anno_sfm_path)
 
         # Load the annotation file.
-        print('loading %s' % anno_path)
+        print('Loading cub annotations from %s' % anno_path)
         self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
         self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
 
