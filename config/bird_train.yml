@@ -26,10 +26,10 @@ train:
   workers: 0
   checkpoint: ''
   out_dir: './out'
-  use_gt_cam: False
+  use_gt_cam: True
   loss:
     geometric: 1
-    visibility: 10
+    visibility: 1
     mask: 2
   optim:
     lr: 0.00006

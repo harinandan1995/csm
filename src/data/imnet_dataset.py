@@ -26,9 +26,6 @@ class ImnetDataset(IDataset):
         self.load_data()
 
     def __len__(self):
-        """
-        :return: number of images
-        """
 
         return self.num_samples
 
@@ -74,7 +71,7 @@ class ImnetDataset(IDataset):
         validate_paths(anno_path, anno_sfm_path)
 
         # Load the annotation file.
-        print('loading %s' % anno_path)
+        print('Loading imagenet annotation from %s' % anno_path)
         self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
         self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
 
