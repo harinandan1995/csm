@@ -93,10 +93,15 @@ class IDataset(Dataset):
 
     def _get_template_mesh(self) -> Meshes:
 
-        vertices = self.mean_shape['verts'].to(torch.float)
-        faces = self.mean_shape['faces'].to(torch.long)
-        template_texture = get_template_texture(vertices, faces, self.texture_map)
+        if hasattr(self.config.dir, 'template'):
+            mesh = trimesh.load(self.config.dir.template, 'obj')
+            vertices = torch.from_numpy(np.asarray(mesh.vertices)).to(self.device, dtype=torch.float)
+            faces = torch.from_numpy(np.asarray(mesh.faces)).to(self.device, dtype=torch.long)
+        else:
+            vertices = self.mean_shape['verts'].to(torch.float)
+            faces = self.mean_shape['faces'].to(torch.long)
 
+        template_texture = get_template_texture(vertices, faces, self.texture_map)
         template_mesh = Meshes(verts=[vertices], faces=[faces], textures=template_texture).to(self.device)
 
         return template_mesh
