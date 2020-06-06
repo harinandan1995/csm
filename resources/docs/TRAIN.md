@@ -71,4 +71,16 @@ python run.py --config config/bird_train.yml --device cuda:0 train --train.batch
 ```  
 Same level of nesting as in the config file are used in command line updates (eg. train.optim.lr)
 > Run ``python run.py train --help`` for more information
- 
+
+### Summaries & Checkpoints
+By default when you start training all the summaries and the checkpoints are stored in ``out/{date}/{time}/...`` where date and time are when the training started.
+
+#### Summaries
+Summaries are stored using tensorboard. To start tensorboard run
+```
+tensorboard --logdir out/{date}/{time}/summaries/.
+```
+> Please make sure you are in the conda environment
+
+#### Checkpoints
+After every few epochs model weights are stored as checkpoints in ``out/{date}/{time}/summaries/``. You can use any checkpoint to preload the weights if you want to start a new training. You just have to update the train.checkpoint config parameter.
