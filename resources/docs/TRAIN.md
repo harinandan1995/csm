@@ -22,7 +22,6 @@ wget http://www.vision.caltech.edu/visipedia-data/CUB-200-2011/CUB_200_2011.tgz 
 ```
 #### Imagenet Data
 * Download the images for the categories from imagenet [here](http://image-net.org/download)
-
 #### Pretrained model
 
 Coming soon ......
@@ -80,7 +79,7 @@ Summaries are stored using tensorboard. To start tensorboard run
 ```
 tensorboard --logdir out/{date}/{time}/summaries/.
 ```
-> Please make sure you are in the conda environment
+> Please make sure you are in the conda environment or atleast latest tensorboard is available in the environment
 
 #### Checkpoints
 After every few epochs model weights are stored as checkpoints in ``out/{date}/{time}/summaries/``. You can use any checkpoint to preload the weights if you want to start a new training. You just have to update the train.checkpoint config parameter.
