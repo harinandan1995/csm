@@ -1,5 +1,5 @@
 dataset:
-  category: 'bird'
+  category: 'car'
   img_size: 256
   img_height: 320
   img_width: 512
@@ -12,10 +12,10 @@ dataset:
   flip_train: True
 
   dir:
-    texture: 'resources/color_maps/bird/map3.png'
-    template: './datasets/cachedir/cub/model/mean_bird_fixed.obj'
-    data_dir: './datasets/CUB_200_2011'
-    cache_dir: './datasets/cachedir/cub'
+    texture: 'resources/color_maps/car/map3.png'
+    template: ''
+    data_dir: './datasets/PASCAL1.1'
+    cache_dir: './datasets/cachedir/p3d'
 
 train:
   batch_size: 5

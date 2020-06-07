@@ -10,8 +10,6 @@ dataset:
   flip: True
   tight_crop: False
   flip_train: True
-  num_pairs: 10000
-  num_kps: 15
 
   dir:
     texture: 'resources/color_maps/horse/map3.png'
