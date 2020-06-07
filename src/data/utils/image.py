@@ -4,6 +4,11 @@ from __future__ import print_function
 
 import cv2
 import numpy as np
+import torch
+from PIL import Image
+from pytorch3d.structures import Textures
+
+from src.nnutils.geometry import convert_3d_to_uv_coordinates
 
 
 def resize_img(img, scale_factor):
@@ -123,3 +128,25 @@ def compute_dt_barrier(mask, k=50):
 
     dist = 1. / (1 + np.exp(k * -dist_diff))
     return dist
+
+
+def get_texture_map(img_path, device='cuda'):
+
+    texture_map = Image.open(img_path).resize((256, 256), Image.ANTIALIAS)
+    texture_map = torch.from_numpy(np.asarray(texture_map)).permute(2, 0, 1)
+
+    return texture_map.to(device=device, dtype=torch.float) / 255
+
+
+def get_template_texture(vertices, faces, texture_map, device='cuda'):
+
+    verts_uv = convert_3d_to_uv_coordinates(vertices)
+    vertex_rgb = torch.nn.functional.grid_sample(texture_map.unsqueeze(0),
+                                                 2 * verts_uv.unsqueeze(0).unsqueeze(0) - 1)
+    vertex_rgb = vertex_rgb.squeeze(2).permute(0, 2, 1) * 255
+    texture = Textures([texture_map.cpu().permute(1, 2, 0)],
+                       faces_uvs=faces.unsqueeze(0),
+                       verts_uvs=verts_uv.unsqueeze(0),
+                       verts_rgb=vertex_rgb).to(device)
+
+    return texture

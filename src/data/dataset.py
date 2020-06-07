@@ -1,10 +1,13 @@
 import cv2
 import imageio
 import numpy as np
+import torch
 import trimesh
+from pytorch3d.structures import Meshes
 from torch.utils.data import Dataset
 
-from src.data import image, transformations
+from src.data.utils import image, transformations
+from src.data.utils.image import get_texture_map, get_template_texture
 from src.nnutils.geometry import convert_3d_to_uv_coordinates
 
 
@@ -24,7 +27,10 @@ class IDataset(Dataset):
         self.flip = config.flip
         self.device = device
 
-        self.mean_shape, self.template_mesh, self.texture_map = self._get_template_info()
+        self.mean_shape = self._get_mean_shape()
+        self.texture_map = get_texture_map(self.config.dir.texture)
+        self.template_mesh = self._get_template_mesh()
+
         self.kp_3d, self.kp_uv, self.kp_names, self.kp_perm = self.load_key_points()
 
     def __len__(self):
@@ -67,7 +73,7 @@ class IDataset(Dataset):
             elem['flip_mask'] = flip_mask
         return elem
 
-    def _get_template_info(self):
+    def _get_mean_shape(self) -> dict:
         """
         Gets the template information
 
@@ -85,6 +91,21 @@ class IDataset(Dataset):
 
         return NotImplementedError('Must be implemented by a child class')
 
+    def _get_template_mesh(self) -> Meshes:
+
+        if 'template' in self.config.dir:
+            mesh = trimesh.load(self.config.dir.template, 'obj')
+            vertices = torch.from_numpy(np.asarray(mesh.vertices)).to(self.device, dtype=torch.float)
+            faces = torch.from_numpy(np.asarray(mesh.faces)).to(self.device, dtype=torch.long)
+        else:
+            vertices = self.mean_shape['verts'].to(torch.float)
+            faces = self.mean_shape['faces'].to(torch.long)
+
+        template_texture = get_template_texture(vertices, faces, self.texture_map)
+        template_mesh = Meshes(verts=[vertices], faces=[faces], textures=template_texture).to(self.device)
+
+        return template_mesh
+
     def load_key_points(self):
         """
         :return: A tuple containing the below values in the same order
@@ -96,7 +117,19 @@ class IDataset(Dataset):
 
         return NotImplementedError('Must be implemented by a child class')
 
-    def get_data(self, index):
+    def get_data(self, index: int) -> tuple:
+        """
+        For the given index the child class should return a
+
+        :param index: index of the sample required
+        :return: tuple (bbox, mask, parts, pose, img_path)
+            bbox - A np array of shape [4] with the x1, y1, x2, y2 coordinates of the bounding box
+            mask - (H X W) numpy array. Foreground mask
+            parts - (KP X 3) numpy array containing the 2D positions of the keypoints on the image and
+                a value showing whether or not the key point is visible in the image.
+            sfm_pose - A list of 3 numpy arrays of shapes (), (2,), (4,) with scale, translation and quaternions
+            img_path - Path to image
+        """
 
         raise NotImplementedError('get_items method should be implemented in the child class')
 
@@ -123,11 +156,6 @@ class IDataset(Dataset):
             img = np.repeat(np.expand_dims(img, 2), 3, axis=2)
         mask = np.expand_dims(mask, 2)
 
-        # Adjust to 0 indexing
-        bbox = np.array(
-            [bbox.x1, bbox.y1, bbox.x2, bbox.y2],
-            float) - 1
-
         kp = np.copy(parts)
         vis = kp[:, 2] > 0
         kp[vis, :2] -= 1
@@ -143,6 +171,7 @@ class IDataset(Dataset):
         else:
             bbox = image.peturb_bbox(
                 bbox, pf=self.padding_frac, jf=0)
+
         if self.config.tight_crop:
             bbox = bbox
         else:
@@ -363,4 +392,5 @@ class IDataset(Dataset):
         mesh = trimesh.Trimesh(verts, faces)
         closest_point = trimesh.proximity.closest_point(mesh, kp3d)
         kp_uv = convert_3d_to_uv_coordinates(closest_point[0])
+
         return kp_uv

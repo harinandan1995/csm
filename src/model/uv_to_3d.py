@@ -35,7 +35,7 @@ class UVto3D(nn.Module):
         self.uv_map_size = torch.tensor(
             [self.uv_res[1] - 1, self.uv_res[0] - 1], dtype=torch.float32).view(1, 2).to(device)
 
-    def forward(self, uv):
+    def forward(self, uv: torch.Tensor) -> torch.Tensor:
 
         """
         For each UV value
@@ -45,8 +45,8 @@ class UVto3D(nn.Module):
         - Find the barycentric coordinates for the point w.r.t the face
         - Use barycentric coordinates to find the 3D coordinate of the given UV value
 
-        :param uv: [B, None, 2] tensor with UV values (0-1) for which the corresponding 3D points should be calculated
-        :return: A [B, None, 3] tensor with the 3D coordinates fot the corresponding UV values
+        :param uv: [B, 2] tensor with UV values (0-1) for which the corresponding 3D points should be calculated
+        :return: A [B, 3] tensor with the 3D coordinates fot the corresponding UV values
         """
 
         # Find the closest UV value as per the UV resolution in 'uv_map'
