@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from src.data.cub_dataset import CubDataset
+from src.data.p3d_dataset import P3DDataset
 from src.nnutils.geometry import get_scaled_orthographic_projection
 from src.nnutils.rendering import DepthRenderer, ColorRenderer
 from src.utils.config import ConfigParser
@@ -11,9 +12,9 @@ if __name__ == '__main__':
 
     device = 'cuda:0'
 
-    config = ConfigParser('../../config/bird_train.yml', None).config
+    config = ConfigParser('./config/p3d_train.yml', None).config
 
-    dataset = CubDataset(config.dataset)
+    dataset = P3DDataset(config.dataset)
     data_loader = DataLoader(dataset=dataset,
                              batch_size=1,
                              shuffle=False,
@@ -33,6 +34,7 @@ if __name__ == '__main__':
 
         rotation, translation = get_scaled_orthographic_projection(
             scale, trans, quat, device)
+        rotation = rotation.permute(0, 2, 1)
 
         pred_mask, depth = renderer(template_mesh, rotation, translation)
         depth[depth < 0] = depth.max() + 1

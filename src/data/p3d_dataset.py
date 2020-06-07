@@ -15,7 +15,7 @@ class P3DDataset(IDataset):
 
         super(P3DDataset, self).__init__(config, device)
 
-        self.img_dir = osp.join(config.dir.data_dir, 'images')
+        self.img_dir = osp.join(config.dir.data_dir, 'Images')
         self.anno = []
         self.anno_sfm = []
         self.num_samples = 0
@@ -81,60 +81,3 @@ class P3DDataset(IDataset):
 
         self.num_samples = len(self.anno)
 
-    def get_img_data(self, index):
-        """
-        :param index: the index of image
-        :return: A list of dicts of  contains info of the given index image
-        img: A np.ndarray 3*256*256, index given image after crop and mirror (if train)
-        kp_uv: A np.ndarray  15*2， key points in uv coordinate
-        mask: A np.ndarray 256*256, mask after transformation
-        sfm_pose: sfm_pose after transformation
-        float, scale,
-        np.ndarray 1*2, trans
-        np.ndarray 1*4, quaternion,
-        inds: list of given indices
-
-        if self.transform == 'flip'
-        flip_img: A np.ndarray 3*256*256, img after flip
-        flip_mask: A np.ndarray 256*256, mask after transformation
-        """
-
-        ty_idx = type(index)
-        if ty_idx != int and ty_idx != list:
-            raise TypeError("Invalid type of index")
-        elif ty_idx == int:
-            index = [index]
-        res = []
-        for idx in index:
-            dic = self.__getitem__(idx)
-            res.append(dic)
-        return res
-
-    def get_3d_data(self):
-        """
-        :return: a dict contains info of mean shape:
-        A np.ndarray  15*3, 3d key_points
-        A np.ndarray  15, key_point_indx
-        A list 15, key_point names
-        A np.ndarray 15*2,projected in uv-cordinate key_points
-        A np.ndarray  1001*1001*3, bary_cord
-        A np.ndarray  144*3, conv_tri
-        A np.ndarray  1001*1001*2, uv_map
-        A np.ndarray  15*3, (3d key_points)S
-        A np.ndarray  V*3, verts
-        A np.ndarray  F*3, faces
-        A np.ndarray  1001*1001, face_inds
-        A np.ndarray  V*2, uv_verts
-        A np.ndarray  V*3, sphere_verts
-        F - number of faces
-        V - number of vertices
-        """
-        dic = {
-            'kp3d': self.kp_3d,
-            'kp_perm': self.kp_perm,
-            'kp_names': self.kp_names,
-            'kp_uv': self.kp_uv
-        }
-        dic.update(self.mean_shape)
-
-        return dic

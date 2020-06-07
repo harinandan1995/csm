@@ -30,6 +30,7 @@ class ITrainer:
 
         self.config = config
 
+        self._load_dataset()
         self.model = self._get_model()
         self._load_model(config.checkpoint)
 
@@ -126,6 +127,13 @@ class ITrainer:
             return torch.optim.Adam(self.model.parameters(), lr=config.optim.lr, betas=(config.optim.beta1, 0.999))
 
         return AttributeError('Invalid optimizer type %s' % config.optim.type)
+
+    def _load_dataset(self):
+        """
+        Use this to load any datasets which might be needed to load key points, template meshes etc.
+        """
+
+        return NotImplementedError
 
     def _get_data_loader(self) -> torch.utils.data.DataLoader:
         """

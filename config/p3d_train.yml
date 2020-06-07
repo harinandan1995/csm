@@ -12,9 +12,9 @@ dataset:
   flip_train: True
 
   dir:
+    template: './datasets/cachedir/shapenet/car/marching_cubes_mean.obj'
     texture: 'resources/color_maps/car/map3.png'
-    template: ''
-    data_dir: './datasets/PASCAL1.1'
+    data_dir: './datasets/PASCAL3D+_release1.1'
     cache_dir: './datasets/cachedir/p3d'
 
 train:

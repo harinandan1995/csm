@@ -93,7 +93,7 @@ class IDataset(Dataset):
 
     def _get_template_mesh(self) -> Meshes:
 
-        if hasattr(self.config.dir, 'template'):
+        if 'template' in self.config.dir:
             mesh = trimesh.load(self.config.dir.template, 'obj')
             vertices = torch.from_numpy(np.asarray(mesh.vertices)).to(self.device, dtype=torch.float)
             faces = torch.from_numpy(np.asarray(mesh.faces)).to(self.device, dtype=torch.long)

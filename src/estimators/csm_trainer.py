@@ -3,6 +3,8 @@ import os.path as osp
 import torch.utils.data
 
 from src.data.cub_dataset import CubDataset
+from src.data.imnet_dataset import ImnetDataset
+from src.data.p3d_dataset import P3DDataset
 from src.estimators.trainer import ITrainer
 from src.model.csm import CSM
 from src.nnutils.color_transform import sample_uv_contour
@@ -40,12 +42,13 @@ class CSMTrainer(ITrainer):
         :param device: Device to store the tensors. Default: cuda
         """
         self.device = torch.device(device)
-        self.dataset = CubDataset(config.dataset, self.device)
-        self.gt_2d_pos_grid = get_gt_positions_grid(
-            (config.dataset.img_size, config.dataset.img_size)).to(self.device).permute(2, 0, 1)
-        self.gt_2d_pos_grid = self.gt_2d_pos_grid.unsqueeze(0).unsqueeze(0)
+        self.data_cfg = config.dataset
 
         super(CSMTrainer, self).__init__(config.train)
+
+        self.gt_2d_pos_grid = get_gt_positions_grid(
+            (self.data_cfg.img_size, self.data_cfg.img_size)).to(self.device).permute(2, 0, 1)
+        self.gt_2d_pos_grid = self.gt_2d_pos_grid.unsqueeze(0).unsqueeze(0)
 
         self.texture_map = self.dataset.texture_map
         self.template_mesh = self.dataset.template_mesh
@@ -145,6 +148,15 @@ class CSMTrainer(ITrainer):
 
         self._add_summaries(step, epoch, uv, uv_3d, img, mask,
                             pred_positions, pred_depths, pred_z, pred_masks)
+
+    def _load_dataset(self):
+
+        if self.data_cfg.category == 'car':
+            self.dataset = P3DDataset(self.data_cfg, self.device)
+        elif self.data_cfg.category == 'bird':
+            self.dataset = CubDataset(self.data_cfg, self.device)
+        else:
+            self.dataset = ImnetDataset(self.data_cfg, self.device)
 
     def _get_data_loader(self):
 
