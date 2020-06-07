@@ -13,7 +13,7 @@ For the categories from imagenet the sysnetid is also provided
 #### Annotations
 * Download the annotations for all the categories
 ```
-wget https://syncandshare.lrz.de/dl/fi7mmNz9FxDGTNdSbyYDkmBS/cachedir.tar.gz & tar -xf cachedir.tar.gz
+wget https://syncandshare.lrz.de/dl/fi7mmNz9FxDGTNdSbyYDkmBS/cachedir.tar.gz && tar -xf cachedir.tar.gz
 ```
 #### CUB Data
 * Download the images for bird category
