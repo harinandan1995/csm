@@ -120,6 +120,7 @@ class CSMTrainer(ITrainer):
         if current_epoch % 5 == 0:
             self._save_model(osp.join(self.checkpoint_dir,
                                       'model_%s_%d' % (get_time(), current_epoch)))
+
         self.summary_writer.add_scalar('loss/geometric', self.running_loss_1 / total_steps, current_epoch)
         self.summary_writer.add_scalar('loss/visibility', self.running_loss_2 / total_steps, current_epoch)
         self.running_loss_1 = 0
@@ -133,7 +134,7 @@ class CSMTrainer(ITrainer):
 
     def _batch_end_call(self, batch, loss, out, step, total_steps, epoch, total_epochs):
         # Print the loss at the end of each batch
-        if step % 10 == 0:
+        if step % self.config.log.loss_step == 0:
             print('%d:%d/%d loss %f' % (epoch, step, total_steps, loss))
 
         uv = out["uv"]
@@ -207,28 +208,44 @@ class CSMTrainer(ITrainer):
             gt. camera pose /predicted camera poses
         """
 
-        if step % 20 == 0:
+        sum_step = step % self.config.log.image_summary_step
 
-            sum_step = step % 20
+        if sum_step == 0 and epoch % self.config.log.image_epoch == 0:
 
-            loss_values = torch.mean(geometric_cycle_consistency_loss(
-                self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2)
-            loss_values = loss_values / 0.1
-            self.summary_writer.add_images('loss/geometric', loss_values, sum_step)
+            self._add_loss_vis(pred_positions, mask, epoch, sum_step)
+            self._add_input_vis(img, mask, epoch, sum_step)
+            self._add_pred_vis(uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step)
+            
+    def _add_loss_vis(self, pred_positions, mask, epoch, sum_step):
 
-            uv_color, uv_blend = sample_uv_contour(img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
-            self.summary_writer.add_images('data/img', img, sum_step)
-            self.summary_writer.add_images('data/mask', mask, sum_step)
+        loss_values = torch.mean(geometric_cycle_consistency_loss(
+            self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2)
+        loss_values = (loss_values - loss_values.min())/(loss_values.max()-loss_values.min())
+        self.summary_writer.add_images('%d/pred/geometric' % epoch, loss_values, sum_step)
 
-            self.summary_writer.add_images('pred/uv_blend', uv_blend, sum_step)
-            self.summary_writer.add_images('pred/uv', uv_color * mask, sum_step)
-            depth = (pred_depths - pred_depths.min())/(pred_depths.max()-pred_depths.min())
-            z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
-            self.summary_writer.add_images('pred/depth', depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
-            self.summary_writer.add_images('pred/z', z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
-            self.summary_writer.add_images('pred/mask', pred_masks.view(-1, 1, pred_masks.size(-2), pred_masks.size(-1)), sum_step)
+    def _add_input_vis(self, img, mask, epoch, sum_step):
+
+        self.summary_writer.add_images('%d/data/img' % epoch, img, sum_step)
+        self.summary_writer.add_images('%d/data/mask' % epoch, mask, sum_step)
+    
+    def _add_pred_vis(self, uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step):
+
+        uv_color, uv_blend = sample_uv_contour(img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
+        self.summary_writer.add_images('%d/pred/uv_blend' % epoch, uv_blend, sum_step)
+        self.summary_writer.add_images('%d/pred/uv' % epoch, uv_color * mask, sum_step)
+        
+        depth = (pred_depths - pred_depths.min())/(pred_depths.max()-pred_depths.min())
+        self.summary_writer.add_images('%d/pred/depth' % epoch, depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
+        
+        z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
+        self.summary_writer.add_images('%d/pred/z' % epoch, z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
+
+        self.summary_writer.add_images('%d/pred/mask' % epoch, pred_masks.view(-1, 1, pred_masks.size(-2), pred_masks.size(-1)), sum_step)
 
     def _get_template_mesh_colors(self):
+        """
+        Creates the colors for the template mesh using the texture map. These colors can be used for tensorboard mesh summary.
+        """
 
         vertices = self.template_mesh.verts_packed()
         vertices_uv = convert_3d_to_uv_coordinates(vertices)

@@ -13,8 +13,8 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/horse/map3.png'
-    data_dir: './datasets/IMAGENET'
-    cache_dir: './datasets/cachedir/'
+    data_dir: 'datasets/IMAGENET'
+    cache_dir: 'datasets/cachedir/'
 
 train:
   batch_size: 5
@@ -24,6 +24,10 @@ train:
   checkpoint: ''
   out_dir: './out'
   use_gt_cam: False
+  log:
+    loss_step: 10
+    image_summary_step: 30
+    image_epoch: 1
   loss:
     geometric: 1
     visibility: 10

@@ -12,10 +12,10 @@ dataset:
   flip_train: True
 
   dir:
-    template: './datasets/cachedir/shapenet/car/marching_cubes_mean.obj'
     texture: 'resources/color_maps/car/map3.png'
-    data_dir: './datasets/PASCAL3D+_release1.1'
-    cache_dir: './datasets/cachedir/p3d'
+    template: 'datasets/cachedir/shapenet/car/marching_cubes_mean.obj'
+    data_dir: 'datasets/PASCAL3D+_release1.1'
+    cache_dir: 'datasets/cachedir/p3d'
 
 train:
   batch_size: 5
@@ -25,11 +25,15 @@ train:
   checkpoint: ''
   out_dir: './out'
   use_gt_cam: True
+  log:
+    loss_step: 10
+    image_summary_step: 30
+    image_epoch: 1
   loss:
     geometric: 1
-    visibility: 1
+    visibility: 0.1
     mask: 2
   optim:
-    lr: 0.00006
+    lr: 0.0001
     beta1: 0.9
     type: 'adam'
