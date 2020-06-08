@@ -17,7 +17,7 @@ dataset:
     data_dir: '/mnt/raid/csmteam/datasets/PASCAL3D+_release1.1'
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir/p3d'
 
-    train:
+train:
   batch_size: 32
   epochs: 100
   shuffle: True
