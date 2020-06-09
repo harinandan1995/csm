@@ -1,5 +1,6 @@
 import os.path as osp
 
+import numpy as np
 import torch.utils.data
 
 from src.data.cub_dataset import CubDataset
@@ -7,7 +8,7 @@ from src.data.imnet_dataset import ImnetDataset
 from src.data.p3d_dataset import P3DDataset
 from src.estimators.trainer import ITrainer
 from src.model.csm import CSM
-from src.nnutils.color_transform import sample_uv_contour
+from src.nnutils.color_transform import sample_uv_contour, draw_key_points
 from src.nnutils.geometry import get_gt_positions_grid, convert_3d_to_uv_coordinates
 from src.nnutils.losses import *
 from src.utils.config import ConfigParser
@@ -56,6 +57,9 @@ class CSMTrainer(ITrainer):
         self.summary_writer.add_mesh('Template', self.template_mesh.verts_packed().unsqueeze(0),
                                      faces=self.template_mesh.faces_packed().unsqueeze(0),
                                      colors=template_mesh_colors)
+        self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
+
+        # Running losses to calculate mean loss per epoch for all types of losses
         self.running_loss_1 = 0
         self.running_loss_2 = 0
         self.running_loss_3 = 0
@@ -121,6 +125,7 @@ class CSMTrainer(ITrainer):
             self._save_model(osp.join(self.checkpoint_dir,
                                       'model_%s_%d' % (get_time(), current_epoch)))
 
+        # Add loss summaries & reset the running losses
         self.summary_writer.add_scalar('loss/geometric', self.running_loss_1 / total_steps, current_epoch)
         self.summary_writer.add_scalar('loss/visibility', self.running_loss_2 / total_steps, current_epoch)
         self.running_loss_1 = 0
@@ -137,33 +142,19 @@ class CSMTrainer(ITrainer):
         if step % self.config.log.loss_step == 0:
             print('%d:%d/%d loss %f' % (epoch, step, total_steps, loss))
 
-        uv = out["uv"]
-        uv_3d = out["uv_3d"]
-        pred_z = out['pred_z']
-        pred_masks = out['pred_masks']
-        pred_depths = out['pred_depths']
-        pred_positions = out['pred_positions']
+        self._add_summaries(step, epoch, out, batch)
 
-        img = batch['img'].to(self.device, dtype=torch.float)
-        mask = batch['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
-
-        self._add_summaries(step, epoch, uv, uv_3d, img, mask,
-                            pred_positions, pred_depths, pred_z, pred_masks)
-
-    def _load_dataset(self):
+    def _load_dataset(self) -> torch.utils.data.Dataset:
+        """
+        Returns the dataset based on the input category
+        """
 
         if self.data_cfg.category == 'car':
-            self.dataset = P3DDataset(self.data_cfg, self.device)
+            return P3DDataset(self.data_cfg, self.device)
         elif self.data_cfg.category == 'bird':
-            self.dataset = CubDataset(self.data_cfg, self.device)
+            return CubDataset(self.data_cfg, self.device)
         else:
-            self.dataset = ImnetDataset(self.data_cfg, self.device)
-
-    def _get_data_loader(self):
-
-        return torch.utils.data.DataLoader(
-            self.dataset, batch_size=self.config.batch_size,
-            shuffle=self.config.shuffle, num_workers=self.config.workers)
+            return ImnetDataset(self.data_cfg, self.device)
 
     def _get_model(self):
         """
@@ -189,24 +180,24 @@ class CSMTrainer(ITrainer):
 
         return model
 
-    def _add_summaries(self, step, epoch, uv, uv_3d, img, mask, pred_positions,
-                       pred_depths, pred_z, pred_masks):
+    def _add_summaries(self, step, epoch, out, batch):
         """
         Adds image summaries to the summary writer
 
         :param step: Current optimization step number (Batch number)
         :param epoch: Current epoch
-        :param uv: A (B X 2 X H X W) tensor of UV values for the batch
-        :param uv_3d: A (B X H X W X 3) tensor of 3D coordinates for the UV values
-        :param img: A (B X 3 X H X W) tensor of input image
-        :param mask: A (B X 1 X H X W) tensor of input foreground mask
-        :param pred_depths: A (B X CP X 1 X H X W) tensor of depths rendered with the
-            gt. camera pose /predicted camera poses (if config.use_gt_cam_pose) is true
-        :param pred_z: A (B X CP X 1 X H X W) tensor of z values of the projected 3D points
-            for the predicted UV values
-        :param pred_masks: A (B X CP X 1 X H X W) tensor of masks  rendered with the
-            gt. camera pose /predicted camera poses
+        :param out: A dictionary containing the output from the model
+        :param batch: A dictionary containing the batched inputs to the model
         """
+
+        uv = out["uv"]
+        pred_z = out['pred_z']
+        pred_masks = out['pred_masks']
+        pred_depths = out['pred_depths']
+        pred_positions = out['pred_positions']
+
+        img = batch['img'].to(self.device, dtype=torch.float)
+        mask = batch['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
 
         sum_step = step % self.config.log.image_summary_step
 
@@ -217,6 +208,9 @@ class CSMTrainer(ITrainer):
             self._add_pred_vis(uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step)
             
     def _add_loss_vis(self, pred_positions, mask, epoch, sum_step):
+        """
+        Add loss visualizations to the tensorboard summaries
+        """
 
         loss_values = torch.mean(geometric_cycle_consistency_loss(
             self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2)
@@ -224,11 +218,17 @@ class CSMTrainer(ITrainer):
         self.summary_writer.add_images('%d/pred/geometric' % epoch, loss_values, sum_step)
 
     def _add_input_vis(self, img, mask, epoch, sum_step):
+        """
+        Add input data (img, mask) visualizations to the tensorboard summaries
+        """
 
         self.summary_writer.add_images('%d/data/img' % epoch, img, sum_step)
         self.summary_writer.add_images('%d/data/mask' % epoch, mask, sum_step)
     
     def _add_pred_vis(self, uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step):
+        """
+        Add predicted output (depth, uv, masks) visualizations to the tensorboard summaries
+        """
 
         uv_color, uv_blend = sample_uv_contour(img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
         self.summary_writer.add_images('%d/pred/uv_blend' % epoch, uv_blend, sum_step)

@@ -4,6 +4,7 @@ import torch
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 
+from src.data.dataset import IDataset
 from src.utils.config import ConfigParser
 from src.utils.utils import get_date, get_time, create_dir_if_not_exists
 
@@ -30,7 +31,7 @@ class ITrainer:
 
         self.config = config
 
-        self._load_dataset()
+        self.dataset = self._load_dataset()
         self.model = self._get_model()
         self._load_model(config.checkpoint)
 
@@ -46,10 +47,12 @@ class ITrainer:
         self.summary_writer = SummaryWriter(self.summary_dir)
         torch.autograd.set_detect_anomaly(True)
 
-    def train(self):
+    def train(self, **kwargs):
         """
         Call this function to start training the model for the given number of epochs
         """
+
+        self.config.update(kwargs)
 
         for epoch in range(self.config.epochs):
 
@@ -128,17 +131,18 @@ class ITrainer:
 
         return AttributeError('Invalid optimizer type %s' % config.optim.type)
 
-    def _load_dataset(self):
-        """
-        Use this to load any datasets which might be needed to load key points, template meshes etc.
-        """
-
-        return NotImplementedError
-
     def _get_data_loader(self) -> torch.utils.data.DataLoader:
         """
-        Must be implemented by the child class.
-        Should return a torch.utils.data.DataLoader which contains the data as a dictionary
+        Creates a torch.utils.data.DataLoader from the dataset
+        """
+
+        return torch.utils.data.DataLoader(
+            self.dataset, batch_size=self.config.batch_size,
+            shuffle=self.config.shuffle, num_workers=self.config.workers)
+
+    def _load_dataset(self) -> IDataset:
+        """
+        Use this to load any datasets which might be needed to load key points, template meshes etc.
         """
 
         return NotImplementedError
