@@ -24,7 +24,7 @@ train:
   workers: 8
   checkpoint: ''
   out_dir: '/mnt/raid/csmteam/out'
-  use_gt_cam: False
+  use_gt_cam: True
   log:
     loss_step: 10
     image_summary_step: 100

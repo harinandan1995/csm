@@ -10,30 +10,22 @@ dataset:
   flip: True
   tight_crop: False
   flip_train: True
+  num_pairs: 10000
 
   dir:
     texture: 'resources/color_maps/car/map3.png'
-    template: 'datasets/cachedir/shapenet/car/marching_cubes_mean.obj'
-    data_dir: 'datasets/PASCAL3D+_release1.1'
-    cache_dir: 'datasets/cachedir/p3d'
+    template: '/mnt/raid/csmteam/datasets/cachedir/shapenet/car/marching_cubes_mean.obj'
+    data_dir: '/mnt/raid/csmteam/datasets/PASCAL3D+_release1.1'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir/p3d'
 
-train:
-  batch_size: 5
-  epochs: 100
+test:
+  batch_size: 32
   shuffle: True
-  workers: 4
-  checkpoint: ''
-  out_dir: './out'
+  workers: 8
+  out_dir: '/mnt/raid/csmteam/out'
   use_gt_cam: True
+  checkpoint: ''
   log:
     loss_step: 10
     image_summary_step: 30
     image_epoch: 1
-  loss:
-    geometric: 1
-    visibility: 0.1
-    mask: 2
-  optim:
-    lr: 0.0001
-    beta1: 0.9
-    type: 'adam'

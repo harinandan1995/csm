@@ -1,5 +1,5 @@
 dataset:
-  category: 'car'
+  category: 'bird'
   img_size: 256
   img_height: 320
   img_width: 512
@@ -13,17 +13,17 @@ dataset:
   num_pairs: 10000
 
   dir:
-    texture: 'resources/color_maps/car/map3.png'
-    template: 'datasets/cachedir/shapenet/car/marching_cubes_mean.obj'
-    data_dir: 'datasets/PASCAL3D+_release1.1'
-    cache_dir: 'datasets/cachedir/p3d'
+    texture: 'resources/color_maps/bird/map3.png'
+    template: '/mnt/raid/csmteam/datasets/cachedir/cub/model/mean_bird_fixed.obj'
+    data_dir: '/mnt/raid/csmteam/datasets/CUB_200_2011'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
 
 test:
-  batch_size: 5
+  batch_size: 32
   epochs: 100
   shuffle: True
-  workers: 0
-  out_dir: './out'
+  workers: 4
+  out_dir: '/mnt/raid/csmteam/out'
   use_gt_cam: True
   checkpoint: ''
   log:
