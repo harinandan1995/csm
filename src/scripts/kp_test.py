@@ -14,4 +14,4 @@ def start_test(config_path, params, device):
 
 
 if __name__ == '__main__':
-    start_test('config/test/p3d.yml', {}, 'cuda:0')
+    start_test('config/kp_test/p3d.yml', {}, 'cuda:0')
