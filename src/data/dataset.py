@@ -394,3 +394,31 @@ class IDataset(Dataset):
         kp_uv = convert_3d_to_uv_coordinates(closest_point[0])
 
         return kp_uv
+
+
+class KPDataset(Dataset):
+
+    def __init__(self, dataset: IDataset, num_pairs: int):
+
+        all_indices = [i for i in range(len(dataset))]
+        rng = np.random.RandomState(len(dataset))
+        pairs = list(zip(rng.choice(all_indices, num_pairs), rng.choice(all_indices, num_pairs)))
+
+        self.dataset = dataset
+        self.index_tuples = pairs
+
+        self.mean_shape = self.dataset.mean_shape
+        self.texture_map = self.dataset.texture_map
+        self.template_mesh = self.dataset.template_mesh
+        self.kp_3d, self.kp_uv = self.dataset.kp_3d, self.dataset.kp_uv
+        self.kp_names, self.kp_perm = self.dataset.kp_names, self.dataset.kp_perm
+
+    def __len__(self):
+
+        return len(self.index_tuples)
+
+    def __getitem__(self, index):
+
+        id1, id2 = self.index_tuples[index]
+
+        return self.dataset[id1], self.dataset[id2]
