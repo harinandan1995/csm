@@ -14,18 +14,16 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/bird/map3.png'
-    template: 'datasets/cachedir/cub/model/mean_bird_fixed.obj'
-    data_dir: 'datasets/CUB_200_2011'
-    cache_dir: 'datasets/cachedir/cub'
+    template: '/mnt/raid/csmteam/datasets/cachedir/cub/model/mean_bird_fixed.obj'
+    data_dir: '/mnt/raid/csmteam/datasets/CUB_200_2011'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
 
 test:
-  batch_size: 5
+  batch_size: 32
   shuffle: True
   workers: 8
-  out_dir: './out'
+  out_dir: '/mnt/raid/csmteam/out'
   use_gt_cam: True
   checkpoint: ''
   log:
-    loss_step: 10
-    image_summary_step: 30
-    image_epoch: 1
+    image_summary_step: 1

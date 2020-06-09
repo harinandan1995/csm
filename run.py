@@ -4,7 +4,7 @@ import torch.utils.data
 
 from src.scripts.kp_test import start_test
 from src.scripts.train import start_train
-from src.utils.utils import add_train_arguments, add_test_arguments
+from src.utils.utils import add_train_arguments, add_kp_test_arguments
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-c', '--config',
@@ -21,7 +21,7 @@ train_parser = sub_parsers.add_parser('train', help='Use this to start training 
 train_parser = add_train_arguments(train_parser)
 
 test_parser = sub_parsers.add_parser('kp_test', help='Use this to start testing the model')
-test_parser = add_test_arguments(test_parser)
+test_parser = add_kp_test_arguments(test_parser)
 
 args = parser.parse_args()
 

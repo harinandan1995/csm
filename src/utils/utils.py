@@ -48,6 +48,7 @@ def add_train_arguments(sub_parser: argparse.ArgumentParser):
     sub_parser.add_argument('-w', '--train.workers', required=False, type=int)
     sub_parser.add_argument('-ck', '--train.checkpoint', required=False, type=str)
     sub_parser.add_argument('--train.use_gt_cam', required=False, type=str2bool)
+    sub_parser.add_argument('--train.out_dir', required=False, type=str)
 
     sub_parser.add_argument('--train.loss.geometric', required=False, type=float)
     sub_parser.add_argument('--train.loss.visibility', required=False, type=float)
@@ -57,6 +58,11 @@ def add_train_arguments(sub_parser: argparse.ArgumentParser):
     sub_parser.add_argument('-b1', '--train.optim.beta1', required=False, type=float)
 
 
-def add_test_arguments(sub_parser: argparse.ArgumentParser):
+def add_kp_test_arguments(sub_parser: argparse.ArgumentParser):
 
-    return
+    sub_parser.add_argument('-b', '--test.batch_size', required=False, type=int)
+    sub_parser.add_argument('-s', '--test.shuffle', required=False, type=str2bool)
+    sub_parser.add_argument('-w', '--test.workers', required=False, type=int)
+    sub_parser.add_argument('-ck', '--test.checkpoint', required=False, type=str)
+    sub_parser.add_argument('--test.use_gt_cam', required=False, type=str2bool)
+    sub_parser.add_argument('--test.out_dir', required=False, type=str)

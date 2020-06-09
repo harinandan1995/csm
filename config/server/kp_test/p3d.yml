@@ -26,6 +26,4 @@ test:
   use_gt_cam: True
   checkpoint: ''
   log:
-    loss_step: 10
-    image_summary_step: 30
-    image_epoch: 1
+    image_summary_step: 1
