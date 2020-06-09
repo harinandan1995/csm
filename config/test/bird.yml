@@ -17,12 +17,11 @@ dataset:
     data_dir: 'datasets/CUB_200_2011'
     cache_dir: 'datasets/cachedir/cub'
 
-train:
+test:
   batch_size: 5
   epochs: 100
   shuffle: True
   workers: 0
-  checkpoint: ''
   out_dir: './out'
   use_gt_cam: True
   log:
@@ -33,7 +32,3 @@ train:
     geometric: 1
     visibility: 1
     mask: 2
-  optim:
-    lr: 0.0001
-    beta1: 0.9
-    type: 'adam'

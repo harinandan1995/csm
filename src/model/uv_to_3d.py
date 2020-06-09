@@ -10,7 +10,7 @@ class UVto3D(nn.Module):
     Module to calculate 3D points from UV values
     """
 
-    def __init__(self, mean_shape, device='cuda:0'):
+    def __init__(self, mean_shape, device='cuda'):
 
         """
         :param mean_shape: is a dictionary containing the following parameters
