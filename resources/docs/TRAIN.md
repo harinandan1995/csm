@@ -13,7 +13,7 @@ For the categories from imagenet the sysnetid is also provided
 #### Annotations
 * Download the annotations for all the categories
 ```
-wget https://syncandshare.lrz.de/dl/fi7mmNz9FxDGTNdSbyYDkmBS/cachedir.tar.gz & tar -xf cachedir.tar.gz
+wget https://syncandshare.lrz.de/dl/fi7mmNz9FxDGTNdSbyYDkmBS/cachedir.tar.gz && tar -xf cachedir.tar.gz
 ```
 #### CUB Data
 * Download the images for bird category
@@ -27,7 +27,7 @@ wget http://www.vision.caltech.edu/visipedia-data/CUB-200-2011/CUB_200_2011.tgz 
 * Downlaod the original data from [here](ftp://cs.stanford.edu/cs/cvgl/PASCAL3D+_release1.1.zip)
 
 ```
-wget ftp://cs.stanford.edu/cs/cvgl/PASCAL3D+_release1.1.zip & unzip PASCAL3D+_release1.1.zip
+wget ftp://cs.stanford.edu/cs/cvgl/PASCAL3D+_release1.1.zip && unzip PASCAL3D+_release1.1.zip
 ```
 > The actual data contains a lot more than what is used in this project. You can discard them all except for the Images directory
 
