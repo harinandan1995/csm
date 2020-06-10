@@ -93,13 +93,15 @@ class CSMTrainer(ITrainer):
         pred_depths = pred_out['pred_depths']
         pred_positions = pred_out['pred_positions']
 
-        loss = self._calculate_loss_for_predictions(mask, pred_positions, pred_masks, pred_depths, pred_z)
+        loss = self._calculate_loss_for_predictions(
+            mask, pred_positions, pred_masks, pred_depths, pred_z, pred_poses)
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask, pred_positions, pred_masks, pred_depths, pred_z):
+    def _calculate_loss_for_predictions(self, mask, pred_positions, pred_masks, pred_depths, pred_z, pred_poses):
 
-        loss_1 = geometric_cycle_consistency_loss(self.gt_2d_pos_grid, pred_positions, mask)
+        loss_1 = geometric_cycle_consistency_loss(
+            self.gt_2d_pos_grid, pred_positions, mask)
         self.running_loss_1 += loss_1
         loss = self.config.loss.geometric * loss_1
 
@@ -112,7 +114,7 @@ class CSMTrainer(ITrainer):
             self.running_loss_3 += loss_3
             loss += self.config.loss.mask * loss_3
             # loss_4 = diverse_loss(pred_poses)
-
+ 
         return loss
 
     def _epoch_end_call(self, current_epoch, total_epochs, total_steps):
@@ -120,14 +122,17 @@ class CSMTrainer(ITrainer):
         if current_epoch % 5 == 0:
             self._save_model(osp.join(self.checkpoint_dir,
                                       'model_%s_%d' % (get_time(), current_epoch)))
-        self.summary_writer.add_scalar('loss/geometric', self.running_loss_1 / total_steps, current_epoch)
-        self.summary_writer.add_scalar('loss/visibility', self.running_loss_2 / total_steps, current_epoch)
+        self.summary_writer.add_scalar(
+            'loss/geometric', self.running_loss_1 / total_steps, current_epoch)
+        self.summary_writer.add_scalar(
+            'loss/visibility', self.running_loss_2 / total_steps, current_epoch)
         self.running_loss_1 = 0
         self.running_loss_2 = 0
 
         if not self.config.use_gt_cam:
 
-            self.summary_writer.add_scalar('loss/mask', self.running_loss_3 / total_steps, current_epoch)
+            self.summary_writer.add_scalar(
+                'loss/mask', self.running_loss_3 / total_steps, current_epoch)
             self.running_loss_3 = 0
             self.running_loss_4 = 0
 
@@ -213,20 +218,28 @@ class CSMTrainer(ITrainer):
 
             loss_values = torch.mean(geometric_cycle_consistency_loss(
                 self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2)
-            loss_values = loss_values / 0.1
-            self.summary_writer.add_images('loss/geometric', loss_values, sum_step)
+            loss_values = (loss_values - loss_values.min()) / \
+                (loss_values.max()-loss_values.min())
+            self.summary_writer.add_images(
+                '%d/pred/geometric' % epoch, loss_values, sum_step)
 
-            uv_color, uv_blend = sample_uv_contour(img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
+            uv_color, uv_blend = sample_uv_contour(
+                img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
             self.summary_writer.add_images('data/img', img, sum_step)
             self.summary_writer.add_images('data/mask', mask, sum_step)
 
             self.summary_writer.add_images('pred/uv_blend', uv_blend, sum_step)
-            self.summary_writer.add_images('pred/uv', uv_color * mask, sum_step)
-            depth = (pred_depths - pred_depths.min())/(pred_depths.max()-pred_depths.min())
+            self.summary_writer.add_images(
+                'pred/uv', uv_color * mask, sum_step)
+            depth = (pred_depths - pred_depths.min()) / \
+                (pred_depths.max()-pred_depths.min())
             z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
-            self.summary_writer.add_images('pred/depth', depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
-            self.summary_writer.add_images('pred/z', z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
-            self.summary_writer.add_images('pred/mask', pred_masks.view(-1, 1, pred_masks.size(-2), pred_masks.size(-1)), sum_step)
+            self.summary_writer.add_images(
+                'pred/depth', depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
+            self.summary_writer.add_images(
+                'pred/z', z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
+            self.summary_writer.add_images(
+                'pred/mask', pred_masks.view(-1, 1, pred_masks.size(-2), pred_masks.size(-1)), sum_step)
 
     def _get_template_mesh_colors(self):
 

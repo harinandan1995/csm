@@ -18,27 +18,8 @@ from pytorch3d.structures import Meshes
 """
 
 
-# TODO: retrieve mask and depth in one rendering step to speed up training.
 
-class CameraParams(object):
-    """Class for representing the camera projection."""
-
-    def __init__(self, device: str = "cpu", n: int = 1):
-        """
-        Initialization of camera params.
-        s is a scalar for scaling the translation vector t.
-        r is a vector in the lie algebra to the corresponding lie group. it represents the rotation.
-
-        :param device: The device, on which the computation is done.
-        :param n: number of cameras necessary. n = batch size
-        """
-        # TODO: check for random initialization
-        self.r = torch.zeros(n, 3, device=device)
-        self.s = torch.ones(n, 1, device=device)  # scale
-        self.t = torch.zeros(n, 3, device=device)  # translation vector
-
-
-class CombinedRenderer(nn.Module):
+class MaskAndDepthRenderer(nn.Module):
     """Pytorch Module combining the mask and the depth renderer."""
 
     def __init__(self, meshes: Meshes, device, image_size=256):
@@ -61,7 +42,8 @@ class CombinedRenderer(nn.Module):
                 image_size=image_size)
         )
 
-        self._shader = SoftSilhouetteShader(blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
+        self._shader = SoftSilhouetteShader(
+            blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
 
     def forward(self, R: torch.Tensor, T: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -69,22 +51,25 @@ class CombinedRenderer(nn.Module):
         :return: Tuple with [N X W X H] / [N X W X H X C] tensor.
                 with N = batch size, W = width of image, H = height of image, C = Channels. usually W=H.
         """
-
+        batch_size = R.size(0)
+        meshes_batch = self.meshes.extend(batch_size)
         # retrieve depth  map
-        fragments = self._rasterizer(self.meshes, R=R, T=T)
-        silhouettes = self._shader(self.meshes)  # output is not used here, but calling the shader is necessary
+        fragments = self._rasterizer(meshes_batch, R=R, T=T)
+        # output is not used here, but calling the shader is necessary
+        silhouettes = self._shader(fragments, meshes_batch)
         depth_maps = fragments.zbuf
 
-        masks = silhouettes[..., 3]  # extract masks from alpha channel of rgba image
+        # extract masks from alpha channel of rgba image
+        masks = silhouettes[..., 3]
         masks = torch.ceil(masks)  # converts silhouette to 1-0 masks
 
-        return depth_maps, masks
+        return masks, depth_maps
 
 
 class MaskRenderer(nn.Module):
     """Pytorch Module for computing the projection mask of a 3D Mesh. It is used to compute the re-projection loss."""
 
-    def __init__(self, meshes: Meshes, device, image_size=256):
+    def __init__(self, meshes: Meshes,  image_size=256, device='cuda'):
         """
 
         Initialization of MaskRenderer. Renderer is initialized with predefined rasterizer and shader.
@@ -102,8 +87,7 @@ class MaskRenderer(nn.Module):
         self.device = device
         self._meshes = meshes
 
-        # TODO: check how to implement weak perspective (scaled orthographic).
-        cameras = OpenGLOrthographicCameras(device=device, )
+        cameras = OpenGLOrthographicCameras(device=device)
 
         # parameter settings as of Pytorch3D Tutorial
         # (https://pytorch3d.org/tutorials/camera_position_optimization_with_differentiable_rendering)
@@ -114,7 +98,8 @@ class MaskRenderer(nn.Module):
                 image_size=image_size)
         )
 
-        self._shader = SoftSilhouetteShader(blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
+        self._shader = SoftSilhouetteShader(
+            blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
 
     def forward(self, R: torch.Tensor, T: torch.Tensor) -> torch.Tensor:
         """
@@ -131,9 +116,10 @@ class MaskRenderer(nn.Module):
 
         # since number of meshes and number of R matrices and T vectors have to be the same, we have to extend the
         # meshes by the number of matrices
-        batch_size = R.size()[0]
+        batch_size = R.size(0)
         meshes_batch = self._meshes.extend(batch_size)
-        fragments = self._rasterizer(meshes_batch, R=R, T=T)  # dimensions N x W x H x C
+        # dimensions N x W x H x C
+        fragments = self._rasterizer(meshes_batch, R=R, T=T)
         silhouette = self._shader(fragments, meshes_batch)
 
         masks = silhouette[..., 3]  # extract masks from alpha channel
@@ -157,11 +143,10 @@ class DepthRenderer(nn.Module):
                 for additional information.
        """
         super(DepthRenderer, self).__init__()
-        self.device = device
         self._meshes = meshes
 
         # TODO: check how to implement weak perspective (scaled orthographic).
-        cameras = OpenGLOrthographicCameras(device=self.device)
+        cameras = OpenGLOrthographicCameras(device=device)
 
         raster_settings = RasterizationSettings(image_size=image_size)
         self._rasterizer = MeshRasterizer(
@@ -169,7 +154,8 @@ class DepthRenderer(nn.Module):
             raster_settings=raster_settings
         )
 
-        self._shader = SoftSilhouetteShader(blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
+        self._shader = SoftSilhouetteShader(
+            blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
 
     def forward(self, R: torch.Tensor, T: torch.Tensor):
         """
@@ -185,7 +171,7 @@ class DepthRenderer(nn.Module):
                 H = height of image, usually W=H.
                 C = channels.
         """
-        batch_size = R.size()[0]
+        batch_size = R.size(0)
         meshes_batch = self._meshes.extend(batch_size)
         fragments = self._rasterizer(meshes_batch, R=R, T=T)
 
@@ -222,6 +208,7 @@ class ColorRenderer(nn.Module):
 
     def forward(self, rotation, translation):
 
-        color_image = self.renderer(self.meshes.extend(rotation.size(0)), R=rotation, T=translation)
+        color_image = self.renderer(self.meshes.extend(
+            rotation.size(0)), R=rotation, T=translation)
 
         return color_image
