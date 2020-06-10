@@ -91,7 +91,7 @@ class KPTransferTester(ITester):
 
         return
 
-    def _load_dataset(self):
+    def _load_dataset(self) -> KPDataset:
 
         if self.data_cfg.category == 'car':
             dataset = P3DDataset(self.data_cfg, self.device)
