@@ -126,21 +126,18 @@ class CSMTrainer(ITrainer):
                                       'model_%s_%d' % (get_time(), current_epoch)))
 
         # Add loss summaries & reset the running losses
-        self.summary_writer.add_scalar('loss/geometric', self.running_loss_1 / total_steps, current_epoch)
-        self.summary_writer.add_scalar('loss/visibility', self.running_loss_2 / total_steps, current_epoch)
+        self.summary_writer.add_scalar('loss/geometric', self.running_loss_1 // total_steps, current_epoch)
+        self.summary_writer.add_scalar('loss/visibility', self.running_loss_2 // total_steps, current_epoch)
         self.running_loss_1 = 0
         self.running_loss_2 = 0
 
         if not self.config.use_gt_cam:
 
-            self.summary_writer.add_scalar('loss/mask', self.running_loss_3 / total_steps, current_epoch)
+            self.summary_writer.add_scalar('loss/mask', self.running_loss_3 // total_steps, current_epoch)
             self.running_loss_3 = 0
             self.running_loss_4 = 0
 
     def _batch_end_call(self, batch, loss, out, step, total_steps, epoch, total_epochs):
-        # Print the loss at the end of each batch
-        if step % self.config.log.loss_step == 0:
-            print('%d:%d/%d loss %f' % (epoch, step, total_steps, loss))
 
         self._add_summaries(step, epoch, out, batch)
 
@@ -237,7 +234,7 @@ class CSMTrainer(ITrainer):
         depth = (pred_depths - pred_depths.min())/(pred_depths.max()-pred_depths.min())
         self.summary_writer.add_images('%d/pred/depth' % epoch, depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
         
-        z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
+        z = (pred_z - pred_z.min()) // (pred_z.max() - pred_z.min())
         self.summary_writer.add_images('%d/pred/z' % epoch, z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
 
         self.summary_writer.add_images('%d/pred/mask' % epoch, pred_masks.view(-1, 1, pred_masks.size(-2), pred_masks.size(-1)), sum_step)
