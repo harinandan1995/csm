@@ -94,11 +94,11 @@ class CSMTrainer(ITrainer):
         pred_positions = pred_out['pred_positions']
 
         loss = self._calculate_loss_for_predictions(
-            mask, pred_positions, pred_masks, pred_depths, pred_z, pred_poses)
+            mask, pred_positions, pred_masks, pred_depths, pred_z)
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask, pred_positions, pred_masks, pred_depths, pred_z, pred_poses):
+    def _calculate_loss_for_predictions(self, mask, pred_positions, pred_masks, pred_depths, pred_z):
 
         loss_1 = geometric_cycle_consistency_loss(
             self.gt_2d_pos_grid, pred_positions, mask)
@@ -114,7 +114,7 @@ class CSMTrainer(ITrainer):
             self.running_loss_3 += loss_3
             loss += self.config.loss.mask * loss_3
             # loss_4 = diverse_loss(pred_poses)
- 
+
         return loss
 
     def _epoch_end_call(self, current_epoch, total_epochs, total_steps):
@@ -123,8 +123,10 @@ class CSMTrainer(ITrainer):
             self._save_model(osp.join(self.checkpoint_dir,
                                       'model_%s_%d' % (get_time(), current_epoch)))
 
-        self.summary_writer.add_scalar('loss/geometric', self.running_loss_1 / total_steps, current_epoch)
-        self.summary_writer.add_scalar('loss/visibility', self.running_loss_2 / total_steps, current_epoch)
+        self.summary_writer.add_scalar(
+            'loss/geometric', self.running_loss_1 / total_steps, current_epoch)
+        self.summary_writer.add_scalar(
+            'loss/visibility', self.running_loss_2 / total_steps, current_epoch)
         self.running_loss_1 = 0
         self.running_loss_2 = 0
 
@@ -217,33 +219,43 @@ class CSMTrainer(ITrainer):
 
             self._add_loss_vis(pred_positions, mask, epoch, sum_step)
             self._add_input_vis(img, mask, epoch, sum_step)
-            self._add_pred_vis(uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step)
-            
+            self._add_pred_vis(uv, pred_z, pred_depths,
+                               pred_masks, img, mask, epoch, sum_step)
+
     def _add_loss_vis(self, pred_positions, mask, epoch, sum_step):
 
         loss_values = torch.mean(geometric_cycle_consistency_loss(
             self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2)
-        loss_values = (loss_values - loss_values.min())/(loss_values.max()-loss_values.min())
-        self.summary_writer.add_images('%d/pred/geometric' % epoch, loss_values, sum_step)
+        loss_values = (loss_values - loss_values.min()) / \
+            (loss_values.max()-loss_values.min())
+        self.summary_writer.add_images(
+            '%d/pred/geometric' % epoch, loss_values, sum_step)
 
     def _add_input_vis(self, img, mask, epoch, sum_step):
 
         self.summary_writer.add_images('%d/data/img' % epoch, img, sum_step)
         self.summary_writer.add_images('%d/data/mask' % epoch, mask, sum_step)
-    
+
     def _add_pred_vis(self, uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step):
 
-        uv_color, uv_blend = sample_uv_contour(img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
-        self.summary_writer.add_images('%d/pred/uv_blend' % epoch, uv_blend, sum_step)
-        self.summary_writer.add_images('%d/pred/uv' % epoch, uv_color * mask, sum_step)
-        
-        depth = (pred_depths - pred_depths.min())/(pred_depths.max()-pred_depths.min())
-        self.summary_writer.add_images('%d/pred/depth' % epoch, depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
-        
-        z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
-        self.summary_writer.add_images('%d/pred/z' % epoch, z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
+        uv_color, uv_blend = sample_uv_contour(
+            img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
+        self.summary_writer.add_images(
+            '%d/pred/uv_blend' % epoch, uv_blend, sum_step)
+        self.summary_writer.add_images(
+            '%d/pred/uv' % epoch, uv_color * mask, sum_step)
 
-        self.summary_writer.add_images('%d/pred/mask' % epoch, pred_masks.view(-1, 1, pred_masks.size(-2), pred_masks.size(-1)), sum_step)
+        depth = (pred_depths - pred_depths.min()) / \
+            (pred_depths.max()-pred_depths.min())
+        self.summary_writer.add_images(
+            '%d/pred/depth' % epoch, depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
+
+        z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
+        self.summary_writer.add_images(
+            '%d/pred/z' % epoch, z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
+
+        self.summary_writer.add_images(
+            '%d/pred/mask' % epoch, pred_masks.view(-1, 1, pred_masks.size(-2), pred_masks.size(-1)), sum_step)
 
     def _get_template_mesh_colors(self):
         """
