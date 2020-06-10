@@ -37,22 +37,29 @@ class CameraPredictor(nn.Module):
         :param num_feats: The number of extracted features from the encoder.
         """
         super(CameraPredictor, self).__init__()
+        # TODO: add 1x1 conv to work with arbitrary num of in_channels
         # allows us to use only one encoder for all camera hypotheses in the multi-cam predictor.
         if not encoder:
-            self.encoder = get_encoder()
+            self.encoder = get_encoder(trainable=False)
         else:
             self.encoder = encoder
 
         self._num_feats = num_feats
-        self.fc = nn.Linear(num_feats, 256)
-        self.fc2 = nn.Linear(256, 7)
+
+        self.fc = nn.Sequential(
+            nn.Linear(num_feats, num_feats),
+            nn.LeakyReLU(),
+            nn.Linear(num_feats, num_feats),
+            nn.LeakyReLU(),
+            nn.Linear(num_feats, 8)
+        )
 
     def forward(self, x: torch.Tensor, as_vec: bool = False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Predicts the camera pose represented by a 3-tuple of scale factor, translation vector and quaternions
         representing the rotation to an input image :param x.
         :param x: The input image, for which the camera pose should be predicted.
-        :param as_vec: Returns the results as tensors instead of tuples. 
+        :param as_vec: Returns the results as tensors instead of tuples.
         :return: if as_vec :
             A 3-tuple containing the following tensors. (N = batch size)
             scale: N X 1 vector, containing the scale factors.
@@ -61,20 +68,20 @@ class CameraPredictor(nn.Module):
                 the quaternions are mapped to the rotation matrix outside of this forward pass.
             prob: [N x 1]: probability logit for a certain camera pose. only used in multi-hypotheses setting.
             else:
-                [N x 7] tensor containing the above mentioned camera parameters in a tensor.
+                [N x 8] tensor containing the above mentioned camera parameters in a tensor.
         """
         x = self.encoder(x)
-
         # convert NXCx1x1 tensor to a NXC vector
         x = x.view(-1, self._num_feats)
         x = self.fc(x)
-        x = F.leaky_relu(x)
-        x = self.fc2(x)
 
         return x if as_vec else vec_to_tuple(x)
 
+# TODO: have one network to predict all hypotheses
+
 
 class MultiCameraPredictor(nn.Module):
+
     """Module for predicting a set of camera poses and a corresponding probabilities."""
 
     def __init__(self, num_hypotheses=8, num_feats=512):
@@ -84,7 +91,7 @@ class MultiCameraPredictor(nn.Module):
         :param num_feats: number of features extracted from the image by the encoder
         """
         super(MultiCameraPredictor, self).__init__()
-        _encoder = get_encoder()
+        _encoder = get_encoder(trainable=False)
 
         self.num_hypotheses = num_hypotheses
         self.cam_preds = nn.ModuleList(
@@ -100,23 +107,29 @@ class MultiCameraPredictor(nn.Module):
         :return: 3-tuple containing
             - a sampled camera pose from the predicted camera poses, see CameraPredictor.forward for more documentation
             - the index of the camera which has been sampled
-            - all predicted camera pose hypotheses, shape [N x H x 7 ]
-             N = batch size, H = number of hypotheses, 7 = number of outputs from the pose predictor
+            - all predicted camera pose hypotheses, shape [N x H x 8 ]
+             N = batch size, H = number of hypotheses, 8 = number of outputs from the pose predictor
         """
         # make camera pose predictions
         cam_preds = [cpp(x, as_vec=True) for cpp in self.cam_preds]
         cam_preds = torch.stack(cam_preds, dim=1)
 
-        prob_logits = cam_preds[..., -1]
+        # apply softmax to probabilities
+        prob_logits = cam_preds[..., 7]
         probs = F.softmax(prob_logits, dim=1)
-        new_cam_preds = torch.cat(
-            (cam_preds[..., :-1, ], probs.unsqueeze(-1)), dim=-1)
+
+        #  only positive scales
+        scale_logits = cam_preds[..., 0]
+        scale = F.relu(scale_logits)
+
+        new_cam_preds = torch.cat((scale.unsqueeze(-1),
+                                   cam_preds[..., 1:-1, ], probs.unsqueeze(-1)), dim=-1)
 
         dist = torch.distributions.multinomial.Multinomial(probs=probs)
 
         # get index of hot-one in one-hot encoded vector. Delivers the index of the camera which should be sampled.
         sample_idx = dist.sample().argmax(dim=1)
-        indices = sample_idx.unsqueeze(-1).repeat(1, 7).unsqueeze(1)
+        indices = sample_idx.unsqueeze(-1).repeat(1, 8).unsqueeze(1)
         sampled_cam = torch.gather(
             input=cam_preds, dim=1, index=indices).view(-1, cam_preds.size(-1))
         sampled_cam = vec_to_tuple(sampled_cam)
@@ -128,7 +141,7 @@ def vec_to_tuple(x):
     """
     Converts an input tensor
     :param x: prediction output of the pose predictor.
-     [Nx7]/[N x H x 7 ];  N = batch size, H = number of hypotheses, 7 = number of outputs from the pose predictor.
+     [Nx8]/[N x H x 8 ];  N = batch size, H = number of hypotheses, 8 = number of outputs from the pose predictor.
     :return: 4 tuples containing the
      - scale tensor [N x 1], predicted scale factors
      - translate tensor [N x 2], predicted translation vector
@@ -136,23 +149,25 @@ def vec_to_tuple(x):
      - prob tensor [N x 1], predicted probability logit for each camera pose
     """
     scale = x[..., 0]
-    translate = x[..., 1:2 + 1]
-    quat = x[..., 2:5 + 1]
-    prob = x[..., 6]
+    translate = x[..., 1:3]
+    quat = x[..., 3:7]
+    prob = x[..., 7]
 
     return scale, translate, quat, prob
 
 
-def get_encoder():
+def get_encoder(trainable=False):
     """
     Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
     Pre-trained layers are frozen.
+    :param trainable: bool. whether to train the resnet layers  
     :return: Feature extractor from resnet18
     """
 
     resnet = torch.hub.load(
         'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
     encoder = nn.Sequential(*([*resnet.children()][:-1]))
-    for param in encoder.parameters():
-        param.requires_grad = False
+    if not trainable:
+        for param in encoder.parameters():
+            param.requires_grad = False
     return encoder

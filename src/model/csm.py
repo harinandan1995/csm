@@ -45,13 +45,11 @@ class CSM(torch.nn.Module):
 
         self.unet = UNet(4, 3).to(self.device)
         self.uv_to_3d = UVto3D(mean_shape).to(self.device)
-        # self.mask_render = MaskAndDepthRenderer(
-        #     meshes=template_mesh, device=self.device)
         self.renderer = MaskAndDepthRenderer(
             meshes=template_mesh, device=self.device)
         self.use_gt_cam = use_gt_cam
 
-        if self.use_gt_cam:
+        if not self.use_gt_cam:
             # self.cam_predictor = CameraPredictor()
             self.multi_cam_pred = MultiCameraPredictor()
 
