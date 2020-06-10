@@ -13,9 +13,9 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/bird/map3.png'
-    template: './datasets/cachedir/cub/model/mean_bird_fixed.obj'
-    data_dir: './datasets/CUB_200_2011'
-    cache_dir: './datasets/cachedir/cub'
+    template: 'datasets/cachedir/cub/model/mean_bird_fixed.obj'
+    data_dir: 'datasets/CUB_200_2011'
+    cache_dir: 'datasets/cachedir/cub'
 
 train:
   batch_size: 5
@@ -25,11 +25,15 @@ train:
   checkpoint: ''
   out_dir: './out'
   use_gt_cam: True
+  log:
+    loss_step: 10
+    image_summary_step: 30
+    image_epoch: 1
   loss:
     geometric: 1
     visibility: 1
     mask: 2
   optim:
-    lr: 0.00006
+    lr: 0.0001
     beta1: 0.9
     type: 'adam'
