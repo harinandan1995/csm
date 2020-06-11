@@ -1,4 +1,5 @@
 import argparse
+import warnings
 
 import torch.utils.data
 
@@ -15,6 +16,10 @@ parser.add_argument('-d', '--device',
                     help='Device to be used by pytorch',
                     default='cuda:0', required=False)
 
+parser.add_argument('-sw', '--show_warnings',
+                    help='Toggle this command if you want to show warnings',
+                    action='store_true')
+
 sub_parsers = parser.add_subparsers(help='Train or Test', dest='mode')
 
 train_parser = sub_parsers.add_parser('train', help='Use this to start training a model')
@@ -24,6 +29,9 @@ test_parser = sub_parsers.add_parser('kp_test', help='Use this to start testing 
 test_parser = add_kp_test_arguments(test_parser)
 
 args = parser.parse_args()
+
+if not args.show_warnings:
+    warnings.filterwarnings('ignore')
 
 if __name__ == '__main__':
 
