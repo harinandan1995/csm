@@ -20,6 +20,7 @@ class KPTransferTester(ITester):
         self.data_cfg = config.dataset
         super(KPTransferTester, self).__init__(config.test)
         self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
+        self.num_kps = len(self.dataset.kp_names)
 
     def _batch_call(self, step, batch_data):
 
@@ -44,6 +45,11 @@ class KPTransferTester(ITester):
                                tar_pred_kp, src_img, tar_img, step)
     
     def _call_model(self, data):
+        """
+        Calls the model with proper data and returns the output
+        :param data: Batch data dictionary
+        :return: Output from the model
+        """
 
         img = data['img'].to(self.device, dtype=torch.float)
         mask = data['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
@@ -55,11 +61,28 @@ class KPTransferTester(ITester):
 
         return pred_out
 
-    def _convert_to_int_indices(self, float_inds):
+    @staticmethod
+    def _convert_to_int_indices(float_indices):
+        """
+        Converts float indices [-1, 1] to int indices [0, 255]
+        :param float_indices: A tensor containing the float indices [-1, 1]
+        :return: A tensor containing the corresponding integer indices
+        """
 
-        return (255 * (float_inds + 1) // 2).to(torch.int32)
+        return (255 * (float_indices + 1) // 2).to(torch.int32)
 
     def _find_target_kps(self, src_kp, src_uv, tar_uv, tar_mask):
+        """
+        For a given source kps using the uv values of source key points and uv values of
+        all the pixels of target image finds the corresponding target kps by finding the
+        closest pixel when transformed to 3D
+
+        :param src_kp: [B X KP X 2] indices of the key points on the source image [-1-1]
+        :param src_uv: [B X 2 X H X W] uv values of the source image
+        :param tar_uv: [B X 2 X H X W] uv values of the target image
+        :param tar_mask: [B X 1 X H X W] mask for the target image.
+        :return: [B X KP X 2] indices of the key points on the target image[0-255]
+        """
 
         batch_size = src_uv.size(0)
         height = src_uv.size(2)
@@ -74,12 +97,14 @@ class KPTransferTester(ITester):
         tar_uv_3d = tar_uv_3d.repeat(1, src_uv_3d.size(1), 1, 1)
         src_uv_3d = src_uv_3d.repeat(1, 1, tar_uv_3d.size(2), 1)
 
-        kp_dist = torch.pow((tar_uv_3d - src_uv_3d), 2)
+        kp_dist = torch.pow((tar_uv_3d - src_uv_3d) * 10, 2)
         kp_dist = torch.sum(kp_dist, dim=-1)
-        kp_dist = kp_dist + (1 - tar_mask.view(batch_size, 1, -1)) * torch.max(kp_dist) * 10
+        kp_mask = 1 - tar_mask.reshape(batch_size, 1, -1).repeat(1, self.num_kps, 1)
+        kp_dist = kp_dist * (1 - kp_mask) + kp_mask * torch.max(kp_dist) * 10
 
         tar_kp = unravel_index(torch.argmin(kp_dist, 2), (1, height, width, 1))
         tar_kp = tar_kp.permute(0, 2, 1)[:, :, 1:3]
+        tar_kp = torch.cat((tar_kp[:, :, 1:], tar_kp[:, :, :1]), dim=-1)
 
         return tar_kp
 
@@ -111,24 +136,51 @@ class KPTransferTester(ITester):
 
         return model
 
-    def _add_kp_summaries(self, src_kp, tar_kp, tar_pred_kp, src_img, tar_img, step):
+    def _add_kp_summaries(self, src_kp, tar_kp, tar_pred_kp, src_img, tar_img, step, merge=True):
+        """
+        Add key point summaries to tensorboard
 
-        self.summary_writer.add_images('src', draw_key_points(src_img, src_kp, self.key_point_colors), step)
-        self.summary_writer.add_images('tar/orig', draw_key_points(tar_img, tar_kp, self.key_point_colors), step)
-        self.summary_writer.add_images('tar/pred', draw_key_points(tar_img, tar_pred_kp, self.key_point_colors), step)
+        :param src_kp: [B X KP X 2] indices of the key points on src image [0-255]
+        :param tar_kp: [B X KP X 2] indices of the key points on target image [0-255]
+        :param tar_pred_kp: [B X KP X 2] indices of the predicted key points corresponding
+            to the src key points on target image [0-255]
+        :param src_img: [B X 3 X H X W] source image
+        :param tar_img: [B X 3 X H X W] target image
+        :param step: Current batch number
+        :param merge: True or False. True if you want to merge the src and tar outputs into one image
+        :return:
+        """
+        src_kp_img = draw_key_points(src_img, src_kp, self.key_point_colors)
+        tar_kp_img = draw_key_points(tar_img, tar_kp, self.key_point_colors)
+        tar_pred_kp_img = draw_key_points(tar_img, tar_pred_kp, self.key_point_colors)
 
-    def _add_uv_summaries(self, src_pred_out, tar_pred_out, src, tar, step):
+        if merge:
+            self.summary_writer.add_images('merged/kp', torch.cat((src_kp_img, tar_pred_kp_img), dim=2), step)
+            self.summary_writer.add_images('merged/tar_orig', tar_kp_img, step)
+        else:
+            self.summary_writer.add_images('src', src_kp_img, step)
+            self.summary_writer.add_images('tar/orig', tar_kp_img, step)
+            self.summary_writer.add_images('tar/pred', tar_pred_kp_img, step)
+
+    def _add_uv_summaries(self, src_pred_out, tar_pred_out, src, tar, step, merge=True):
 
         src_img = src['img'].to(self.device, dtype=torch.float)
         src_mask = src['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
         src_uv = src_pred_out['uv']
-        uv_color, uv_blend = sample_uv_contour(src_img, src_uv.permute(0, 2, 3, 1), self.dataset.texture_map, src_mask)
-        self.summary_writer.add_images('src/uv_blend', uv_blend, step)
-        self.summary_writer.add_images('src/uv', uv_color * src_mask, step)
+        src_uv_color, src_uv_blend = sample_uv_contour(src_img, src_uv.permute(0, 2, 3, 1), self.dataset.texture_map, src_mask)
 
         tar_img = tar['img'].to(self.device, dtype=torch.float)
         tar_mask = tar['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
         tar_uv = tar_pred_out['uv']
-        uv_color, uv_blend = sample_uv_contour(tar_img, tar_uv.permute(0, 2, 3, 1), self.dataset.texture_map, tar_mask)
-        self.summary_writer.add_images('tar/uv_blend', uv_blend, step)
-        self.summary_writer.add_images('tar/uv', uv_color * tar_mask, step)
+        tar_uv_color, tar_uv_blend = sample_uv_contour(tar_img, tar_uv.permute(0, 2, 3, 1), self.dataset.texture_map, tar_mask)
+
+        if merge:
+            self.summary_writer.add_images(
+                'merged/uv_blend', torch.cat((src_uv_blend, tar_uv_blend), dim=2), step)
+            self.summary_writer.add_images(
+                'merged/uv', torch.cat((src_uv_color * src_mask, tar_uv_color * tar_mask), dim=2), step)
+        else:
+            self.summary_writer.add_images('src/uv_blend', src_uv_blend, step)
+            self.summary_writer.add_images('src/uv', src_uv_color * src_mask, step)
+            self.summary_writer.add_images('tar/uv_blend', tar_uv_blend, step)
+            self.summary_writer.add_images('tar/uv', tar_uv_color * tar_mask, step)

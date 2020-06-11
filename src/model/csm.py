@@ -90,14 +90,13 @@ class CSM(torch.nn.Module):
         if self.use_gt_cam:
 
             rotation, translation = get_scaled_orthographic_projection(
-                scale, trans, quat, self.device)
-            rotation = rotation.permute(0, 2, 1)
+                scale, trans, quat, True, device=self.device)
 
         else:
 
             pred_scale, pred_trans, pred_quat = self.cam_predictor(img)
             rotation, translation = get_scaled_orthographic_projection(
-                pred_scale, pred_trans, pred_quat, self.device)
+                pred_scale, pred_trans, pred_quat, device=self.device)
 
         # TODO: size of 2nd dimension must be equal to number of camera poses used/predicted
         rotation = rotation.unsqueeze(1)
