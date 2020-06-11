@@ -1,5 +1,6 @@
 import os.path as osp
 
+from tqdm import tqdm
 import torch
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
@@ -9,6 +10,10 @@ from src.utils.utils import get_time, get_date
 
 
 class ITester:
+
+    """
+    An interface for all the testers
+    """
 
     def __init__(self, config: ConfigParser.ConfigObject):
 
@@ -26,13 +31,19 @@ class ITester:
         self.summary_writer = SummaryWriter(self.summary_dir)
 
     def test(self, **kwargs):
+        """
+        Call this function to star the testing
+        :param kwargs: Use this to override any config values
+        """
 
         self.config.update(kwargs)
 
         self._test_start_call()
+        batch_bar = tqdm(self.data_loader)
 
-        for step, batch_data in enumerate(self.data_loader):
+        for step, batch_data in enumerate(batch_bar):
 
+            batch_bar.set_description('Testing %sth batch' % step)
             self._batch_call(step, batch_data)
 
         self._test_end_call()
@@ -58,14 +69,27 @@ class ITester:
             shuffle=self.config.shuffle, num_workers=self.config.workers)
 
     def _test_start_call(self):
+        """
+        This function is called before the start of the testing
+        """
 
         return
 
     def _test_end_call(self):
+        """
+        This function is called after the end of the testing
+        :return:
+        """
 
         return
 
     def _batch_call(self, step, batch_data):
+        """
+        This function is called for every batch. Child class must implement the testing logic
+        like calling the model etc. here
+        :param step: Current batch number
+        :param batch_data: Current batch data
+        """
 
         return
 
