@@ -2,8 +2,10 @@ import os.path as osp
 
 import torch
 import torch.utils.data
+from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 
+from src.data.dataset import IDataset
 from src.utils.config import ConfigParser
 from src.utils.utils import get_date, get_time, create_dir_if_not_exists
 
@@ -30,7 +32,7 @@ class ITrainer:
 
         self.config = config
 
-        self._load_dataset()
+        self.dataset = self._load_dataset()
         self.model = self._get_model()
         self._load_model(config.checkpoint)
 
@@ -39,26 +41,31 @@ class ITrainer:
 
         time = get_time()
         date = get_date()
-        self.summary_dir = osp.join(self.config.out_dir, date, time, 'summaries')
+        self.summary_dir = osp.join(self.config.out_dir, date, time, 'summaries', 'train')
         self.checkpoint_dir = osp.join(self.config.out_dir, date, time, 'checkpoints')
         create_dir_if_not_exists(self.checkpoint_dir)
 
         self.summary_writer = SummaryWriter(self.summary_dir)
         torch.autograd.set_detect_anomaly(True)
 
-    def train(self):
+    def train(self, **kwargs):
         """
         Call this function to start training the model for the given number of epochs
         """
 
-        for epoch in range(self.config.epochs):
+        self.config.update(kwargs)
 
+        epoch_bar = tqdm(range(self.config.epochs), position=0)
+        for epoch in epoch_bar:
+
+            epoch_bar.set_description('Running %sth epoch' % epoch)
             running_loss = 0
-
             self._epoch_start_call(epoch, self.config.epochs)
 
-            for step, batch in enumerate(self.data_loader):
-                
+            batch_bar = tqdm(self.data_loader, position=1, leave=False)
+            for step, batch in enumerate(batch_bar):
+
+                batch_bar.set_description('Training with %sth batch' % step)
                 self._batch_start_call(batch, step, len(self.data_loader), epoch, self.config.epochs)
                 
                 loss, out = self._train_step(step, batch, epoch)
@@ -66,8 +73,10 @@ class ITrainer:
                 
                 self._batch_end_call(batch, loss, out, step, len(self.data_loader),
                                      epoch, self.config.epochs)
+                batch_bar.set_postfix_str('loss %f' % loss)
             
             epoch_loss = running_loss / len(self.data_loader)
+            epoch_bar.set_postfix_str('%dth epoch loss %f' % (epoch, epoch_loss))
             self.summary_writer.add_scalar('loss/train', epoch_loss, epoch)
             
             self._epoch_end_call(epoch, self.config.epochs, len(self.data_loader))
@@ -97,7 +106,6 @@ class ITrainer:
 
         if path is not None and path != '':
             torch.save(self.model.state_dict(), path)
-            print('Saving model weights at %s' % path)
 
     def _load_model(self, path):
         """
@@ -128,17 +136,18 @@ class ITrainer:
 
         return AttributeError('Invalid optimizer type %s' % config.optim.type)
 
-    def _load_dataset(self):
-        """
-        Use this to load any datasets which might be needed to load key points, template meshes etc.
-        """
-
-        return NotImplementedError
-
     def _get_data_loader(self) -> torch.utils.data.DataLoader:
         """
-        Must be implemented by the child class.
-        Should return a torch.utils.data.DataLoader which contains the data as a dictionary
+        Creates a torch.utils.data.DataLoader from the dataset
+        """
+
+        return torch.utils.data.DataLoader(
+            self.dataset, batch_size=self.config.batch_size,
+            shuffle=self.config.shuffle, num_workers=self.config.workers)
+
+    def _load_dataset(self) -> IDataset:
+        """
+        Use this to load any datasets which might be needed to load key points, template meshes etc.
         """
 
         return NotImplementedError

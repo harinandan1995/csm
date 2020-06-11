@@ -14,4 +14,4 @@ def start_train(config_path, params, device):
 
 
 if __name__ == '__main__':
-    start_train('config/bird_train.yml')
+    start_train('config/bird_train.yml', {}, 'cuda:0')

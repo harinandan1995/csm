@@ -32,9 +32,7 @@ if __name__ == '__main__':
         trans = data['trans'].to(device, dtype=torch.float)
         quat = data['quat'].to(device, dtype=torch.float)
 
-        rotation, translation = get_scaled_orthographic_projection(
-            scale, trans, quat, device)
-        rotation = rotation.permute(0, 2, 1)
+        rotation, translation = get_scaled_orthographic_projection(scale, trans, quat, True, device)
 
         pred_mask, depth = renderer(template_mesh, rotation, translation)
         depth[depth < 0] = depth.max() + 1
