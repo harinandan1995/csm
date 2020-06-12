@@ -30,14 +30,12 @@ To create a conda environment with all the required packages using conda run the
 ```
 conda env create -f resources/env.yml
 ```
+> The above command creates a conda environment with the name **acsm**
 
-To update an existing environment use
+To update an existing environment with name 'acsm' use
 ```
 conda env update -f resources/env.yml
 ```
-
-
-The above command create an environment with the name **acsm**
 
 To activate the environment run the following command
 
