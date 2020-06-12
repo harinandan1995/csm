@@ -1,22 +1,3 @@
-# model input: bottleneck layer of resnet 18+ CONV(FILTERS=64, kernel=4x4, S=2,) + 2 FC Layers
-# model architecture:
-# camera predictor:
-#  - 2 FC Layer with leaky ReLU activation (see below) (different from the one in the encoder)
-# - 100 input features (per default)
-# - nn.Sequential(
-#            nn.Linear(nc_inp, nc_out),
-#            nn.LeakyReLU(0.1,inplace=True)
-#        )
-# - separate predictors for probability, scale, translation and quaternions (zero initialized)
-# - biases: init
-#   -         base_rotation = torch.FloatTensor([0.9239, 0, 0.3827 , 0]).unsqueeze(0).unsqueeze(0) ##pi/4
-#   -        base_bias = torch.FloatTensor([ 0.7071,  0.7071,   0,   0]).unsqueeze(0).unsqueeze(0)
-
-# model output: set of cameras with associated probabilities (also single camera output possible)
-# - set of cameras
-# loss function: re-projection loss (input mask - projected_mask squared); mask is a label
-
-
 from typing import Tuple
 
 import torch
@@ -38,6 +19,8 @@ class CameraPredictor(nn.Module):
         """
         super(CameraPredictor, self).__init__()
         # TODO: add 1x1 conv to work with arbitrary num of in_channels
+        # self.conv1 = nn.Conv2d(3,)
+
         # allows us to use only one encoder for all camera hypotheses in the multi-cam predictor.
         if not encoder:
             self.encoder = get_encoder(trainable=False)
@@ -77,7 +60,7 @@ class CameraPredictor(nn.Module):
 
         return x if as_vec else vec_to_tuple(x)
 
-# TODO: have one network to predict all hypotheses
+
 
 
 class MultiCameraPredictor(nn.Module):
@@ -94,6 +77,7 @@ class MultiCameraPredictor(nn.Module):
         _encoder = get_encoder(trainable=False)
 
         self.num_hypotheses = num_hypotheses
+
         self.cam_preds = nn.ModuleList(
             [CameraPredictor(num_feats=num_feats, encoder=_encoder) for _ in range(num_hypotheses)])
 
@@ -111,19 +95,19 @@ class MultiCameraPredictor(nn.Module):
              N = batch size, H = number of hypotheses, 8 = number of outputs from the pose predictor
         """
         # make camera pose predictions
-        cam_preds = [cpp(x, as_vec=True) for cpp in self.cam_preds]
-        cam_preds = torch.stack(cam_preds, dim=1)
+        pred_pose = [cpp(x, as_vec=True) for cpp in self.cam_preds]
+        pred_pose = torch.stack(pred_pose, dim=1)
 
         # apply softmax to probabilities
-        prob_logits = cam_preds[..., 7]
+        prob_logits = pred_pose[..., 7]
         probs = F.softmax(prob_logits, dim=1)
 
         #  only positive scales
-        scale_logits = cam_preds[..., 0]
+        scale_logits = pred_pose[..., 0]
         scale = F.relu(scale_logits)
 
-        new_cam_preds = torch.cat((scale.unsqueeze(-1),
-                                   cam_preds[..., 1:-1, ], probs.unsqueeze(-1)), dim=-1)
+        pred_pose_new = torch.cat((scale.unsqueeze(-1),
+                                   pred_pose[..., 1:-1, ], probs.unsqueeze(-1)), dim=-1)
 
         dist = torch.distributions.multinomial.Multinomial(probs=probs)
 
@@ -131,10 +115,10 @@ class MultiCameraPredictor(nn.Module):
         sample_idx = dist.sample().argmax(dim=1)
         indices = sample_idx.unsqueeze(-1).repeat(1, 8).unsqueeze(1)
         sampled_cam = torch.gather(
-            input=cam_preds, dim=1, index=indices).view(-1, cam_preds.size(-1))
+            input=pred_pose, dim=1, index=indices).view(-1, pred_pose.size(-1))
         sampled_cam = vec_to_tuple(sampled_cam)
 
-        return sampled_cam, sample_idx, vec_to_tuple(new_cam_preds)
+        return sampled_cam, sample_idx, vec_to_tuple(pred_pose_new)
 
 
 def vec_to_tuple(x):
