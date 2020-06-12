@@ -28,8 +28,14 @@ Download the latest conda [here](https://docs.conda.io/projects/conda/en/latest/
 To create a conda environment with all the required packages using conda run the following command
 
 ```
-conda env create resources/env.yml
+conda env create -f resources/env.yml
 ```
+
+To update an existing environment use
+```
+conda env update -f resources/env.yml
+```
+
 
 The above command create an environment with the name **acsm**
 
