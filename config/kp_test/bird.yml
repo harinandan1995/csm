@@ -10,6 +10,7 @@ dataset:
   flip: True
   tight_crop: False
   flip_train: True
+  num_pairs: 10000
 
   dir:
     texture: 'resources/color_maps/bird/map3.png'
@@ -17,23 +18,12 @@ dataset:
     data_dir: 'datasets/CUB_200_2011'
     cache_dir: 'datasets/cachedir/cub'
 
-train:
+test:
   batch_size: 5
-  epochs: 100
   shuffle: True
   workers: 4
-  checkpoint: ''
-  out_dir: './out'
+  out_dir: 'out'
   use_gt_cam: True
+  checkpoint: ''
   log:
-    loss_step: 10
-    image_summary_step: 30
-    image_epoch: 1
-  loss:
-    geometric: 1
-    visibility: 1
-    mask: 2
-  optim:
-    lr: 0.0001
-    beta1: 0.9
-    type: 'adam'
+    image_summary_step: 1

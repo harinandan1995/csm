@@ -20,6 +20,7 @@ The following are the packages required to run the code
 - pytorch3d
 - matplotlib
 - rtree=0.9.4
+- scikit-image
 
 #### Conda
 Download the latest conda [here](https://docs.conda.io/projects/conda/en/latest/user-guide/install/download.html)

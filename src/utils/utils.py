@@ -28,14 +28,27 @@ def get_time():
     return date_time.strftime("%H%M%S")
 
 
+def str2bool(v):
+
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 def add_train_arguments(sub_parser: argparse.ArgumentParser):
 
     sub_parser.add_argument('-b', '--train.batch_size', required=False, type=int)
     sub_parser.add_argument('-e', '--train.epochs', required=False, type=int)
-    sub_parser.add_argument('-s', '--train.shuffle', required=False, type=bool)
+    sub_parser.add_argument('-s', '--train.shuffle', required=False, type=str2bool)
     sub_parser.add_argument('-w', '--train.workers', required=False, type=int)
     sub_parser.add_argument('-ck', '--train.checkpoint', required=False, type=str)
-    sub_parser.add_argument('--train.use_gt_cam', required=False, type=str)
+    sub_parser.add_argument('--train.use_gt_cam', required=False, type=str2bool)
+    sub_parser.add_argument('--train.out_dir', required=False, type=str)
 
     sub_parser.add_argument('--train.loss.geometric', required=False, type=float)
     sub_parser.add_argument('--train.loss.visibility', required=False, type=float)
@@ -45,6 +58,11 @@ def add_train_arguments(sub_parser: argparse.ArgumentParser):
     sub_parser.add_argument('-b1', '--train.optim.beta1', required=False, type=float)
 
 
-def add_test_arguments(sub_parser: argparse.ArgumentParser):
+def add_kp_test_arguments(sub_parser: argparse.ArgumentParser):
 
-    return
+    sub_parser.add_argument('-b', '--test.batch_size', required=False, type=int)
+    sub_parser.add_argument('-s', '--test.shuffle', required=False, type=str2bool)
+    sub_parser.add_argument('-w', '--test.workers', required=False, type=int)
+    sub_parser.add_argument('-ck', '--test.checkpoint', required=False, type=str)
+    sub_parser.add_argument('--test.use_gt_cam', required=False, type=str2bool)
+    sub_parser.add_argument('--test.out_dir', required=False, type=str)

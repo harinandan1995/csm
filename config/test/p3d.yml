@@ -1,5 +1,5 @@
 dataset:
-  category: 'bird'
+  category: 'car'
   img_size: 256
   img_height: 320
   img_width: 512
@@ -12,16 +12,16 @@ dataset:
   flip_train: True
 
   dir:
-    texture: 'resources/color_maps/bird/map3.png'
-    template: 'datasets/cachedir/cub/model/mean_bird_fixed.obj'
-    data_dir: 'datasets/CUB_200_2011'
-    cache_dir: 'datasets/cachedir/cub'
+    texture: 'resources/color_maps/car/map3.png'
+    template: 'datasets/cachedir/shapenet/car/marching_cubes_mean.obj'
+    data_dir: 'datasets/PASCAL3D+_release1.1'
+    cache_dir: 'datasets/cachedir/p3d'
 
 train:
   batch_size: 5
   epochs: 100
   shuffle: True
-  workers: 4
+  workers: 0
   checkpoint: ''
   out_dir: './out'
   use_gt_cam: True
@@ -31,7 +31,7 @@ train:
     image_epoch: 1
   loss:
     geometric: 1
-    visibility: 1
+    visibility: 0.1
     mask: 2
   optim:
     lr: 0.0001

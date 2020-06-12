@@ -1,7 +1,10 @@
+import numpy as np
 import torch
 
+from skimage import draw
 
-def uv_to_rgb(uv, max_value=None, device='cuda:0'):
+
+def uv_to_rgb(uv, max_value=None, device='cuda'):
     # TODO: Add documentation
 
     b, _, h, w = uv.shape
@@ -50,3 +53,27 @@ def sample_uv_contour(img, uv_map, uv_texture_map, mask, real_img=True):
         uv_rendering = (uv_sample * alpha_sample) + (img * (1 - alpha_sample))
 
     return uv_sample, uv_rendering
+
+
+def draw_key_points(img, kps, colors, radius=5):
+    """
+    Draws key points on images
+    :param img: A (B X 3 X H X W) tensor of images
+    :param kps: A (B X KP, 3) tensor containing indices of key points. Only those key point
+        for which the value of the  last dim is 1 is drawn on the image
+    :param colors: A (KP, 3) tensor of key point colors as RGB values (0-1)
+    :return:
+    """
+    imgs_np = img.permute(0, 2, 3, 1).cpu().numpy()
+    kp_np = kps.cpu().numpy()
+    final_img = np.empty((0, imgs_np.shape[1], imgs_np.shape[2], 3))
+
+    for cv_img, kps in zip(imgs_np, kp_np):
+        for i, kp in enumerate(kps):
+            if kp[2] == 255:
+                rr, cc = draw.disk((kp[1], kp[0]), radius, shape=cv_img.shape)
+                cv_img[rr, cc] = colors[i]
+
+        final_img = np.append(final_img, np.expand_dims(cv_img, 0), axis=0)
+
+    return torch.from_numpy(final_img).permute(0, 3, 1, 2)

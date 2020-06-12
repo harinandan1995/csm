@@ -12,28 +12,27 @@ dataset:
   flip_train: True
 
   dir:
-    texture: 'resources/color_maps/bird/map3.png'
-    template: 'datasets/cachedir/cub/model/mean_bird_fixed.obj'
-    data_dir: 'datasets/CUB_200_2011'
-    cache_dir: 'datasets/cachedir/cub'
+    texture: 'resources/color_maps/horse/map3.png'
+    data_dir: 'datasets/IMAGENET'
+    cache_dir: 'datasets/cachedir/'
 
 train:
   batch_size: 5
   epochs: 100
   shuffle: True
-  workers: 4
+  workers: 0
   checkpoint: ''
   out_dir: './out'
-  use_gt_cam: True
+  use_gt_cam: False
   log:
     loss_step: 10
     image_summary_step: 30
     image_epoch: 1
   loss:
     geometric: 1
-    visibility: 1
+    visibility: 10
     mask: 2
   optim:
-    lr: 0.0001
+    lr: 0.00006
     beta1: 0.9
     type: 'adam'
