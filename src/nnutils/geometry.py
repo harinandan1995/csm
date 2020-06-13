@@ -174,3 +174,41 @@ def load_mean_shape(mean_shape_path, device='cuda'):
     mean_shape['faces'] = torch.from_numpy(mean_shape['faces']).long().to(device)
 
     return mean_shape
+
+
+def hamilton_product(qa, qb):
+    """Multiply qa by qb.
+
+    Args:
+        qa: B X N X 4 quaternions
+        qb: B X N X 4 quaternions
+    Returns:
+        q_mult: B X N X 4
+    """
+    qa_0 = qa[:, :, 0]
+    qa_1 = qa[:, :, 1]
+    qa_2 = qa[:, :, 2]
+    qa_3 = qa[:, :, 3]
+
+    qb_0 = qb[:, :, 0]
+    qb_1 = qb[:, :, 1]
+    qb_2 = qb[:, :, 2]
+    qb_3 = qb[:, :, 3]
+
+    # See https://en.wikipedia.org/wiki/Quaternion#Hamilton_product
+    q_mult_0 = qa_0 * qb_0 - qa_1 * qb_1 - qa_2 * qb_2 - qa_3 * qb_3
+    q_mult_1 = qa_0 * qb_1 + qa_1 * qb_0 + qa_2 * qb_3 - qa_3 * qb_2
+    q_mult_2 = qa_0 * qb_2 - qa_1 * qb_3 + qa_2 * qb_0 + qa_3 * qb_1
+    q_mult_3 = qa_0 * qb_3 + qa_1 * qb_2 - qa_2 * qb_1 + qa_3 * qb_0
+
+    return torch.stack([q_mult_0, q_mult_1, q_mult_2, q_mult_3], dim=-1)
+
+
+def quat_conj(q):
+    return torch.cat([q[:, :, [0]], -1 * q[:, :, 1:4]], dim=-1)
+
+
+def quat2ang(q):
+    ang  = 2*torch.acos(torch.clamp(q[:,:,0], min=-1 + 1E-6, max=1-1E-6))
+    ang = ang.unsqueeze(-1)
+    return ang
