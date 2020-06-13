@@ -74,10 +74,11 @@ def quaternion_regularization_loss(quats, device='cuda'):
     if num_cam_poses == 0:
         return 0
 
-    NC2_perm = torch.tensor(list(itertools.permutations(range(num_cam_poses), 2)), dtype=torch.int32).to(device)
+    quat_perm = list(itertools.permutations(range(num_cam_poses), 2))
+    quat_perm = torch.tensor(quat_perm, dtype=torch.long).to(device).permute(1, 0)
 
-    quats_x = torch.gather(quats, dim=1, index=NC2_perm[0].view(1, -1, 1).repeat(len(quats), 1, 4))
-    quats_y = torch.gather(quats, dim=1, index=NC2_perm[1].view(1, -1, 1).repeat(len(quats), 1, 4))
+    quats_x = torch.gather(quats, dim=1, index=quat_perm[0].view(1, -1, 1).repeat(len(quats), 1, 4))
+    quats_y = torch.gather(quats, dim=1, index=quat_perm[1].view(1, -1, 1).repeat(len(quats), 1, 4))
     inter_quats = hamilton_product(quats_x, quat_conj(quats_y))
     quatAng = quat2ang(inter_quats).view(len(inter_quats), num_cam_poses - 1, -1)
     quatAng = -1 * torch.nn.functional.max_pool1d(-1 * quatAng.permute(0, 2, 1), num_cam_poses - 1,
@@ -85,15 +86,14 @@ def quaternion_regularization_loss(quats, device='cuda'):
     return (np.pi - quatAng).mean()
 
 
-def diverse_loss(pred_poses):
+def diverse_loss(probs):
     """
     Diverse loss for the poses
-    :param pred_poses: B X CP X 8 camera poses [scale[0], trans[1-2], quat[3-6], prob[7]]
+    :param probs: B X CP probabilities for each camera pose
     :return:
     """
 
-    probs = pred_poses[:, :, :8]
-    entropy = torch.log(probs + 1E-9) * (probs)
-    entropy = entropy.mean()
+    entropy = -torch.log(probs + 1E-9) * probs
+    entropy = entropy.sum(1).mean()
 
     return entropy

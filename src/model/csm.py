@@ -25,7 +25,7 @@ class CSM(torch.nn.Module):
     """
 
     def __init__(self, template_mesh: Meshes, mean_shape: dict,
-                 use_gt_cam: bool = False, device='cuda'):
+                 use_gt_cam: bool = False, num_cam_poses: int = 8, device='cuda'):
         """
         :param template_mesh: A pytorch3d.structures.Meshes object which will used for
         rendering depth and mask for a given camera pose
@@ -50,7 +50,7 @@ class CSM(torch.nn.Module):
         self.use_gt_cam = use_gt_cam
 
         if not self.use_gt_cam:
-            self.multi_cam_pred = MultiCameraPredictor()
+            self.multi_cam_pred = MultiCameraPredictor(num_hypotheses=num_cam_poses)
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
                 scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor):
@@ -169,7 +169,7 @@ class CSM(torch.nn.Module):
             translation.view(-1, 3))
 
         height = pred_mask.size(1)
-        width = pred_mask.size(1)
+        width = pred_mask.size(2)
 
         pred_mask = pred_mask.view(batch_size, cam_poses, 1, height, width)
         pred_depth = pred_depth.view(batch_size, cam_poses, 1, height, width)

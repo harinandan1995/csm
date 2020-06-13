@@ -18,21 +18,23 @@ dataset:
     cache_dir: 'datasets/cachedir/p3d'
 
 train:
-  batch_size: 5
+  batch_size: 10
   epochs: 100
   shuffle: True
-  workers: 4
+  workers: 8
   checkpoint: ''
   out_dir: './out'
-  use_gt_cam: True
+  use_gt_cam: False
+  num_cam_poses: 8
   log:
-    loss_step: 10
     image_summary_step: 30
     image_epoch: 1
   loss:
     geometric: 1
-    visibility: 0.1
-    mask: 2
+    visibility: 1
+    mask: 1
+    diverse: 0.05
+    quat: 1
   optim:
     lr: 0.0001
     beta1: 0.9

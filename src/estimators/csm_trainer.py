@@ -99,16 +99,16 @@ class CSMTrainer(ITrainer):
         pred_masks = pred_out['pred_masks']
         pred_depths = pred_out['pred_depths']
         pred_positions = pred_out['pred_positions']
-        pred_poses = pred_out['pred_poses']
 
         loss = torch.zeros_like(self.running_loss)
 
         loss[0] = geometric_cycle_consistency_loss(self.gt_2d_pos_grid, pred_positions, mask)
         loss[1] = visibility_constraint_loss(pred_depths, pred_z, mask)
         if not self.config.use_gt_cam:
+            pred_scale, pred_trans, pred_quat, pred_prob = pred_out['pred_poses']
             loss[2] = mask_reprojection_loss(mask, pred_masks)
-            # loss[3] = diverse_loss(pred_poses)
-            loss[4] = quaternion_regularization_loss(pred_poses[:, :, 3:7])
+            loss[3] = diverse_loss(pred_prob)
+            loss[4] = quaternion_regularization_loss(pred_quat)
 
         self.running_loss += loss
         loss = self.config.loss.geometric * loss[0] + self.config.loss.visibility * loss[1] + \
@@ -170,10 +170,8 @@ class CSMTrainer(ITrainer):
         :return: A torch model satisfying the above input output structure
         """
 
-        model = CSM(self.dataset.template_mesh,
-                    self.dataset.mean_shape,
-                    self.config.use_gt_cam,
-                    self.device).to(self.device)
+        model = CSM(self.dataset.template_mesh, self.dataset.mean_shape,
+                    self.config.use_gt_cam, self.config.num_cam_poses, self.device).to(self.device)
 
         return model
 
@@ -196,9 +194,9 @@ class CSMTrainer(ITrainer):
         img = batch['img'].to(self.device, dtype=torch.float)
         mask = batch['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
 
-        sum_step = step % self.config.log.image_summary_step
+        sum_step = int(step / self.config.log.image_summary_step)
 
-        if sum_step == 0 and epoch % self.config.log.image_epoch == 0:
+        if step % self.config.log.image_summary_step == 0 and epoch % self.config.log.image_epoch == 0:
 
             self._add_loss_vis(pred_positions, mask, epoch, sum_step)
             self._add_input_vis(img, mask, epoch, sum_step)

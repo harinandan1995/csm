@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Union, Any
 
 import torch
 import torch.nn as nn
@@ -37,7 +37,7 @@ class CameraPredictor(nn.Module):
             nn.Linear(num_feats, 8)
         )
 
-    def forward(self, x: torch.Tensor, as_vec: bool = False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, as_vec: bool = False) -> Union[torch.Tensor, Tuple[Any, Any, Any, Any]]:
         """
         Predicts the camera pose represented by a 3-tuple of scale factor, translation vector and quaternions
         representing the rotation to an input image :param x.
@@ -59,8 +59,6 @@ class CameraPredictor(nn.Module):
         x = self.fc(x)
 
         return x if as_vec else vec_to_tuple(x)
-
-
 
 
 class MultiCameraPredictor(nn.Module):
@@ -106,16 +104,15 @@ class MultiCameraPredictor(nn.Module):
         scale_logits = pred_pose[..., 0]
         scale = F.relu(scale_logits)
 
-        pred_pose_new = torch.cat((scale.unsqueeze(-1),
-                                   pred_pose[..., 1:-1, ], probs.unsqueeze(-1)), dim=-1)
+        pred_pose_new = torch.cat(
+            (scale.unsqueeze(-1), pred_pose[..., 1:-1, ], probs.unsqueeze(-1)), dim=-1)
 
         dist = torch.distributions.multinomial.Multinomial(probs=probs)
 
         # get index of hot-one in one-hot encoded vector. Delivers the index of the camera which should be sampled.
         sample_idx = dist.sample().argmax(dim=1)
         indices = sample_idx.unsqueeze(-1).repeat(1, 8).unsqueeze(1)
-        sampled_cam = torch.gather(
-            input=pred_pose, dim=1, index=indices).view(-1, pred_pose.size(-1))
+        sampled_cam = torch.gather(pred_pose, dim=1, index=indices).view(-1, pred_pose.size(-1))
         sampled_cam = vec_to_tuple(sampled_cam)
 
         return sampled_cam, sample_idx, vec_to_tuple(pred_pose_new)

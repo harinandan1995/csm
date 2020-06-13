@@ -18,7 +18,6 @@ from pytorch3d.structures import Meshes
 """
 
 
-
 class MaskAndDepthRenderer(nn.Module):
     """Pytorch Module combining the mask and the depth renderer."""
 
@@ -63,7 +62,7 @@ class MaskAndDepthRenderer(nn.Module):
         masks = silhouettes[..., 3]
         masks = torch.ceil(masks)  # converts silhouette to 1-0 masks
 
-        return masks, depth_maps
+        return masks, depth_maps[..., 0]
 
 
 class MaskRenderer(nn.Module):
