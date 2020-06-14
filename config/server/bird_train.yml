@@ -18,7 +18,7 @@ dataset:
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
 
 train:
-  batch_size: 32
+  batch_size: 16
   epochs: 200
   shuffle: True
   workers: 16
@@ -31,11 +31,11 @@ train:
     image_epoch: 1
   loss:
     geometric: 1
-    visibility: 1
+    visibility: 10
     mask: 1
     diverse: 0.05
     quat: 1
   optim:
-    lr: 0.00006
+    lr: 0.00008
     beta1: 0.9
     type: 'adam'

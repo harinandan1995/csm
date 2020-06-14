@@ -1,5 +1,6 @@
 from typing import Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 from pytorch3d.renderer import (
@@ -38,11 +39,11 @@ class MaskAndDepthRenderer(nn.Module):
         self._rasterizer = MeshRasterizer(
             cameras=cameras,
             raster_settings=RasterizationSettings(
-                image_size=image_size)
+                image_size=image_size,
+                faces_per_pixel=100)
         )
 
-        self._shader = SoftSilhouetteShader(
-            blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
+        self._shader = SoftSilhouetteShader(blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
 
     def forward(self, R: torch.Tensor, T: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -60,7 +61,7 @@ class MaskAndDepthRenderer(nn.Module):
 
         # extract masks from alpha channel of rgba image
         masks = silhouettes[..., 3]
-        masks = torch.ceil(masks)  # converts silhouette to 1-0 masks
+        # masks = torch.ceil(masks)  # converts silhouette to 1-0 masks
 
         return masks, depth_maps[..., 0]
 
@@ -70,7 +71,6 @@ class MaskRenderer(nn.Module):
 
     def __init__(self, meshes: Meshes,  image_size=256, device='cuda'):
         """
-
         Initialization of MaskRenderer. Renderer is initialized with predefined rasterizer and shader.
         A soft silhouette shader is used to compute the projection mask.
 

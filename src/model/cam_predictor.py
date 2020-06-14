@@ -150,5 +150,5 @@ def get_encoder(trainable=False):
     encoder = nn.Sequential(*([*resnet.children()][:-1]))
     if not trainable:
         for param in encoder.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
     return encoder

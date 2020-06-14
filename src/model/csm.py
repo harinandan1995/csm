@@ -88,12 +88,12 @@ class CSM(torch.nn.Module):
 
         if self.use_gt_cam:
             rotation, translation = get_scaled_orthographic_projection(
-                scale, trans, quat, True, device=self.device)
+                scale, trans, quat, True)
         else:
             cam_pred, sample_idx, pred_poses = self.multi_cam_pred(img)
             pred_scale, pred_trans, pred_quat, _ = cam_pred
             rotation, translation = get_scaled_orthographic_projection(
-                pred_scale, pred_trans, pred_quat, device=self.device)
+                pred_scale, pred_trans, pred_quat)
 
         # TODO: size of 2nd dimension must be equal to number of camera poses used/predicted
         rotation = rotation.unsqueeze(1)
@@ -176,6 +176,6 @@ class CSM(torch.nn.Module):
 
         # Pytorch renderer returns -1 values for the empty pixels which
         # when directly used results in wrong loss calculation so changing the values to the max + 1
-        pred_depth = pred_depth * pred_mask + (1 - pred_mask) * pred_depth.max()
+        pred_depth = pred_depth * torch.ceil(pred_mask) + (1 - torch.ceil(pred_mask)) * pred_depth.max()
 
         return pred_mask, pred_depth

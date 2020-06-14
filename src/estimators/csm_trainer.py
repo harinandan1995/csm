@@ -110,7 +110,8 @@ class CSMTrainer(ITrainer):
             loss[3] = diverse_loss(pred_prob)
             loss[4] = quaternion_regularization_loss(pred_quat)
 
-        self.running_loss += loss
+        self.running_loss = torch.add(self.running_loss, loss)
+        
         loss = self.config.loss.geometric * loss[0] + self.config.loss.visibility * loss[1] + \
                self.config.loss.mask * loss[2] + self.config.loss.diverse * loss[3] + \
                self.config.loss.quat * loss[4]
@@ -122,8 +123,8 @@ class CSMTrainer(ITrainer):
         if current_epoch % 5 == 0:
             self._save_model(osp.join(self.checkpoint_dir,
                                       'model_%s_%d' % (get_time(), current_epoch)))
-
-        self.running_loss = self.running_loss // total_steps
+	
+        self.running_loss = torch.true_divide(self.running_loss, total_steps)
 
         # Add loss summaries & reset the running losses
         self.summary_writer.add_scalar('loss/geometric', self.running_loss[0], current_epoch)
@@ -229,10 +230,10 @@ class CSMTrainer(ITrainer):
         self.summary_writer.add_images('%d/pred/uv_blend' % epoch, uv_blend, sum_step)
         self.summary_writer.add_images('%d/pred/uv' % epoch, uv_color * mask, sum_step)
         
-        depth = (pred_depths - pred_depths.min())/(pred_depths.max()-pred_depths.min())
+        depth = (pred_depths - pred_depths.min()) / (pred_depths.max()-pred_depths.min())
         self.summary_writer.add_images('%d/pred/depth' % epoch, depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
         
-        z = (pred_z - pred_z.min()) // (pred_z.max() - pred_z.min())
+        z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
         self.summary_writer.add_images('%d/pred/z' % epoch, z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
 
         self.summary_writer.add_images(

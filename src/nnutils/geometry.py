@@ -55,7 +55,7 @@ def convert_3d_to_uv_coordinates(points):
         return np.stack([u, v], axis=1)
 
 
-def get_scaled_orthographic_projection(scale, trans, quat, transpose=False, device='cuda'):
+def get_scaled_orthographic_projection(scale, trans, quat, transpose=False):
     """
     Generate scaled orthographic projection matrices rotation and translation
     for the given scale, translation and rotation in quaternions
@@ -70,6 +70,7 @@ def get_scaled_orthographic_projection(scale, trans, quat, transpose=False, devi
         translation - A [B, 3] tensor for translation
     """
 
+    device = scale.device
     translation = torch.cat((trans, torch.ones(
         [trans.size(0), 1], dtype=torch.float, device=device) * 5), dim=1)
 

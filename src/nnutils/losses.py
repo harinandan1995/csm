@@ -61,7 +61,7 @@ def mask_reprojection_loss(mask, pred_masks):
     return torch.nn.functional.mse_loss(extended_mask, pred_masks)
 
 
-def quaternion_regularization_loss(quats, device='cuda'):
+def quaternion_regularization_loss(quats: torch.tensor):
     """
     A regularization loss for the quaternions. Only if number of camera poses per batch is > 1
     :param device: Torch device. Default: cuda
@@ -69,6 +69,7 @@ def quaternion_regularization_loss(quats, device='cuda'):
     :return: The quaternion regularization loss
     """
 
+    device = quats.device
     num_cam_poses = quats.size(1)
 
     if num_cam_poses == 0:

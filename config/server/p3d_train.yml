@@ -18,8 +18,8 @@ dataset:
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir/p3d'
 
 train:
-  batch_size: 32
-  epochs: 100
+  batch_size: 16
+  epochs: 200
   shuffle: True
   workers: 16
   checkpoint: ''
@@ -27,11 +27,11 @@ train:
   use_gt_cam: False
   num_cam_poses: 8
   log:
-    image_summary_step: 100
+    image_summary_step: 30
     image_epoch: 1
   loss:
     geometric: 1
-    visibility: 1
+    visibility: 10
     mask: 1
     diverse: 0.05
     quat: 1
