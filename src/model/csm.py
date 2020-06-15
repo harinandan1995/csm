@@ -25,7 +25,7 @@ class CSM(torch.nn.Module):
     """
 
     def __init__(self, template_mesh: Meshes, mean_shape: dict,
-                 use_gt_cam: bool = False, device='cuda'):
+                 use_gt_cam: bool = False, num_cam_poses: int = 8, device='cuda'):
         """
         :param template_mesh: A pytorch3d.structures.Meshes object which will used for
         rendering depth and mask for a given camera pose
@@ -50,8 +50,7 @@ class CSM(torch.nn.Module):
         self.use_gt_cam = use_gt_cam
 
         if not self.use_gt_cam:
-            # self.cam_predictor = CameraPredictor()
-            self.multi_cam_pred = MultiCameraPredictor()
+            self.multi_cam_pred = MultiCameraPredictor(num_hypotheses=num_cam_poses)
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
                 scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor):
@@ -89,15 +88,12 @@ class CSM(torch.nn.Module):
 
         if self.use_gt_cam:
             rotation, translation = get_scaled_orthographic_projection(
-                scale, trans, quat, True, device=self.device)
-
+                scale, trans, quat, True)
         else:
-            # cam_pred = self.cam_predictor(img)
             cam_pred, sample_idx, pred_poses = self.multi_cam_pred(img)
             pred_scale, pred_trans, pred_quat, _ = cam_pred
-
             rotation, translation = get_scaled_orthographic_projection(
-                pred_scale, pred_trans, pred_quat, device=self.device)
+                pred_scale, pred_trans, pred_quat)
 
         # TODO: size of 2nd dimension must be equal to number of camera poses used/predicted
         rotation = rotation.unsqueeze(1)
@@ -120,10 +116,7 @@ class CSM(torch.nn.Module):
         }
 
         if not self.use_gt_cam:
-
-            out['pred_poses'] = torch.cat(
-                (pred_scale.unsqueeze(-1), pred_trans, pred_quat), dim=-1)
-            out['pred_pose_hypos'] = pred_poses
+            out['pred_poses'] = pred_poses
 
         return out
 
@@ -151,11 +144,9 @@ class CSM(torch.nn.Module):
 
         uv_flatten = uv.view(-1, 2)
         uv_3d = self.uv_to_3d(uv_flatten).view(batch_size, 1, -1, 3)
-        uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(
-            batch_size*num_poses, -1, 3)
+        uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(batch_size*num_poses, -1, 3)
 
-        xyz = torch.bmm(uv_3d, rotation.view(-1, 3, 3)) + \
-            translation.view(-1, 1, 3)
+        xyz = torch.bmm(uv_3d, rotation.view(-1, 3, 3)) + translation.view(-1, 1, 3)
         xyz = xyz.view(batch_size, num_poses, height, width, 3)
 
         xy = xyz[:, :, :, :, :2]
@@ -164,8 +155,7 @@ class CSM(torch.nn.Module):
         xy = xy.permute(0, 1, 4, 2, 3)
         z = z.permute(0, 1, 4, 2, 3)
         uv = uv.permute(0, 3, 1, 2)
-        uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)[
-            :, 0, :, :, :].squeeze()
+        uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)[:, 0, :, :, :].squeeze()
 
         return xy, z, uv, uv_3d
 
@@ -179,14 +169,13 @@ class CSM(torch.nn.Module):
             translation.view(-1, 3))
 
         height = pred_mask.size(1)
-        width = pred_mask.size(1)
+        width = pred_mask.size(2)
 
         pred_mask = pred_mask.view(batch_size, cam_poses, 1, height, width)
         pred_depth = pred_depth.view(batch_size, cam_poses, 1, height, width)
 
         # Pytorch renderer returns -1 values for the empty pixels which
         # when directly used results in wrong loss calculation so changing the values to the max + 1
-        pred_depth = pred_depth * pred_mask + \
-            (1 - pred_mask) * pred_depth.max()
+        pred_depth = pred_depth * torch.ceil(pred_mask) + (1 - torch.ceil(pred_mask)) * pred_depth.max()
 
         return pred_mask, pred_depth

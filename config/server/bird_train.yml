@@ -18,22 +18,24 @@ dataset:
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
 
 train:
-  batch_size: 32
-  epochs: 100
+  batch_size: 16
+  epochs: 200
   shuffle: True
-  workers: 8
+  workers: 16
   checkpoint: ''
   out_dir: '/mnt/raid/csmteam/out'
-  use_gt_cam: True
+  use_gt_cam: False
+  num_cam_poses: 8
   log:
-    loss_step: 10
     image_summary_step: 30
     image_epoch: 1
   loss:
     geometric: 1
     visibility: 10
-    mask: 2
+    mask: 1
+    diverse: 0.05
+    quat: 1
   optim:
-    lr: 0.00006
+    lr: 0.00008
     beta1: 0.9
     type: 'adam'

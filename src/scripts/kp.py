@@ -37,7 +37,7 @@ if __name__ == '__main__':
         trans = data['trans'].to(device, dtype=torch.float)
         quat = data['quat'].to(device, dtype=torch.float)
 
-        rotation, translation = get_scaled_orthographic_projection(scale, trans, quat, True, device)
+        rotation, translation = get_scaled_orthographic_projection(scale, trans, quat, True)
         camera = OpenGLOrthographicCameras(device=device, R=rotation, T=translation)
 
         kps = (((data['kp'].to(device, dtype=torch.float) + 1)/2) * 255).to(torch.int32)

@@ -1,4 +1,9 @@
+import itertools
+
+import numpy as np
 import torch
+
+from src.nnutils.geometry import hamilton_product, quat2ang, quat_conj
 
 
 def geometric_cycle_consistency_loss(gt_2d_pos_grid, pred_positions, mask, reduction='mean'):
@@ -56,5 +61,40 @@ def mask_reprojection_loss(mask, pred_masks):
     return torch.nn.functional.mse_loss(extended_mask, pred_masks)
 
 
-def diverse_loss(pred_poses):
-    return
+def quaternion_regularization_loss(quats: torch.tensor):
+    """
+    A regularization loss for the quaternions. Only if number of camera poses per batch is > 1
+    :param device: Torch device. Default: cuda
+    :param quats: B X CP X 4
+    :return: The quaternion regularization loss
+    """
+
+    device = quats.device
+    num_cam_poses = quats.size(1)
+
+    if num_cam_poses == 0:
+        return 0
+
+    quat_perm = list(itertools.permutations(range(num_cam_poses), 2))
+    quat_perm = torch.tensor(quat_perm, dtype=torch.long).to(device).permute(1, 0)
+
+    quats_x = torch.gather(quats, dim=1, index=quat_perm[0].view(1, -1, 1).repeat(len(quats), 1, 4))
+    quats_y = torch.gather(quats, dim=1, index=quat_perm[1].view(1, -1, 1).repeat(len(quats), 1, 4))
+    inter_quats = hamilton_product(quats_x, quat_conj(quats_y))
+    quatAng = quat2ang(inter_quats).view(len(inter_quats), num_cam_poses - 1, -1)
+    quatAng = -1 * torch.nn.functional.max_pool1d(-1 * quatAng.permute(0, 2, 1), num_cam_poses - 1,
+                                                  stride=1).squeeze()
+    return (np.pi - quatAng).mean()
+
+
+def diverse_loss(probs):
+    """
+    Diverse loss for the poses
+    :param probs: B X CP probabilities for each camera pose
+    :return:
+    """
+
+    entropy = -torch.log(probs + 1E-9) * probs
+    entropy = entropy.sum(1).mean()
+
+    return entropy
