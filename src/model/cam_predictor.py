@@ -11,17 +11,17 @@ class CameraPredictor(nn.Module):
     and translation vector based on an image.
     """
 
-    def __init__(self, num_feats=512, encoder=None):
+    def __init__(self, num_in_chans=3, num_feats=512, encoder=None):
         """
-
+        :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
         :param encoder: An feature extractor of an image. If None, resnet18 will bes used.
         :param num_feats: The number of extracted features from the encoder.
         """
         super(CameraPredictor, self).__init__()
-        # TODO: add 1x1 conv to work with arbitrary num of in_channels
-        # self.conv1 = nn.Conv2d(3,)
 
-        # allows us to use only one encoder for all camera hypotheses in the multi-cam predictor.
+        self.conv1 = nn.Conv2d(num_in_chans, 3, 1)
+
+        # allows us to use only one shared encoder for all camera hypotheses in the multi-cam predictor.
         if not encoder:
             self.encoder = get_encoder(trainable=False)
         else:
@@ -53,6 +53,7 @@ class CameraPredictor(nn.Module):
             else:
                 [N x 8] tensor containing the above mentioned camera parameters in a tensor.
         """
+        x = self.conv1(x)
         x = self.encoder(x)
         # convert NXCx1x1 tensor to a NXC vector
         x = x.view(-1, self._num_feats)
@@ -61,17 +62,15 @@ class CameraPredictor(nn.Module):
         return x if as_vec else vec_to_tuple(x)
 
 
-
-
 class MultiCameraPredictor(nn.Module):
 
     """Module for predicting a set of camera poses and a corresponding probabilities."""
 
-    def __init__(self, num_hypotheses=8, num_feats=512):
+    def __init__(self, num_hypotheses=8, **kwargs):
         """
 
         :param num_hypotheses: number of camera poses which should be predicted.
-        :param num_feats: number of features extracted from the image by the encoder
+        :param kwargs: arguments which are passed through to the single camera predictors
         """
         super(MultiCameraPredictor, self).__init__()
         _encoder = get_encoder(trainable=False)
@@ -79,7 +78,7 @@ class MultiCameraPredictor(nn.Module):
         self.num_hypotheses = num_hypotheses
 
         self.cam_preds = nn.ModuleList(
-            [CameraPredictor(num_feats=num_feats, encoder=_encoder) for _ in range(num_hypotheses)])
+            [CameraPredictor(encoder=_encoder, **kwargs) for _ in range(num_hypotheses)])
 
     def forward(self, x):
         """
