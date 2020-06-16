@@ -23,10 +23,10 @@ parser.add_argument('-sw', '--show_warnings',
 sub_parsers = parser.add_subparsers(help='Train or Test', dest='mode')
 
 train_parser = sub_parsers.add_parser('train', help='Use this to start training a model')
-train_parser = add_train_arguments(train_parser)
+add_train_arguments(train_parser)
 
 test_parser = sub_parsers.add_parser('kp_test', help='Use this to start testing the model')
-test_parser = add_kp_test_arguments(test_parser)
+add_kp_test_arguments(test_parser)
 
 args = parser.parse_args()
 

@@ -25,6 +25,7 @@ train:
   checkpoint: ''
   out_dir: '/mnt/raid/csmteam/out'
   use_gt_cam: False
+  use_sampled_cam: False
   num_cam_poses: 8
   log:
     image_summary_step: 30
@@ -34,7 +35,7 @@ train:
     visibility: 10
     mask: 1
     diverse: 0.05
-    quat: 1
+    quat: 0.1
   optim:
     lr: 0.00008
     beta1: 0.9

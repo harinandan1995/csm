@@ -40,7 +40,7 @@ class MaskAndDepthRenderer(nn.Module):
             cameras=cameras,
             raster_settings=RasterizationSettings(
                 image_size=image_size,
-                faces_per_pixel=100)
+                faces_per_pixel=5)
         )
 
         self._shader = SoftSilhouetteShader(blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))

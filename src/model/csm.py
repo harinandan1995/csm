@@ -25,7 +25,8 @@ class CSM(torch.nn.Module):
     """
 
     def __init__(self, template_mesh: Meshes, mean_shape: dict,
-                 use_gt_cam: bool = False, num_cam_poses: int = 8, device='cuda'):
+                 use_gt_cam: bool = False, num_cam_poses: int = 8, 
+                 use_sampled_cam=False, device='cuda'):
         """
         :param template_mesh: A pytorch3d.structures.Meshes object which will used for
         rendering depth and mask for a given camera pose
@@ -37,6 +38,10 @@ class CSM(torch.nn.Module):
         the corresponding UV value in uv_map.
         :param use_gt_cam: True or False. True if you want to use the ground truth camera pose. False if you want to
             use the camera predictor to predict the camera poses
+        :param num_cam_poses: Number of camera hypothesis to be used. Should be used in with use_gt_cam=False
+        :use_sampled_cam: True of False. True if you want the output from the camera pose sampled according 
+            to the probabilities. False if you want output for all the predicted camera poses. 
+            Should be used in with use_gt_cam=False
         :param device: Device to store the tensor. Default: cuda
         """
         super(CSM, self).__init__()
@@ -45,9 +50,10 @@ class CSM(torch.nn.Module):
 
         self.unet = UNet(4, 3).to(self.device)
         self.uv_to_3d = UVto3D(mean_shape).to(self.device)
-        self.renderer = MaskAndDepthRenderer(
-            meshes=template_mesh, device=self.device)
+        self.renderer = MaskAndDepthRenderer(meshes=template_mesh, device=self.device)
+
         self.use_gt_cam = use_gt_cam
+        self.use_sampled_cam = use_sampled_cam
 
         if not self.use_gt_cam:
             self.multi_cam_pred = MultiCameraPredictor(num_hypotheses=num_cam_poses)
@@ -86,18 +92,7 @@ class CSM(torch.nn.Module):
         sphere_points = torch.tanh(sphere_points)
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
-        if self.use_gt_cam:
-            rotation, translation = get_scaled_orthographic_projection(
-                scale, trans, quat, True)
-        else:
-            cam_pred, sample_idx, pred_poses = self.multi_cam_pred(img)
-            pred_scale, pred_trans, pred_quat, _ = cam_pred
-            rotation, translation = get_scaled_orthographic_projection(
-                pred_scale, pred_trans, pred_quat)
-
-        # TODO: size of 2nd dimension must be equal to number of camera poses used/predicted
-        rotation = rotation.unsqueeze(1)
-        translation = translation.unsqueeze(1)
+        rotation, translation, pred_poses = self._get_camera_extrinsics(img, scale, trans, quat)
 
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
@@ -119,6 +114,35 @@ class CSM(torch.nn.Module):
             out['pred_poses'] = pred_poses
 
         return out
+
+    def _get_camera_extrinsics(self, img, scale, trans, quat):
+
+        batch_size = img.size(0)
+        pred_poses = None
+        
+        if self.use_gt_cam:
+            rotation, translation = get_scaled_orthographic_projection(
+                scale, trans, quat, True)
+        else:
+            cam_pred, sample_idx, pred_poses = self.multi_cam_pred(img)
+            
+            if self.use_sampled_cam:
+                pred_scale, pred_trans, pred_quat, _ = cam_pred
+                rotation, translation = get_scaled_orthographic_projection(
+                    pred_scale, pred_trans, pred_quat)
+            else:
+                pred_scale, pred_trans, pred_quat, _ = pred_poses
+                rotation, translation = get_scaled_orthographic_projection(
+                    pred_scale.view(-1), pred_trans.view(-1, 2), pred_quat.view(-1, 4)
+                )
+                rotation = rotation.view(batch_size, -1, 3, 3)
+                translation = translation.view(batch_size, -1, 2)
+
+        if self.use_gt_cam or self.use_sampled_cam:
+            rotation = rotation.unsqueeze(1)
+            translation = translation.unsqueeze(1)
+        
+        return rotation, translation, pred_poses
 
     def _get_projected_positions_of_sphere_points(self, sphere_points, rotation, translation):
         """
