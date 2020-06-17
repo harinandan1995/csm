@@ -11,15 +11,19 @@ class CameraPredictor(nn.Module):
     and translation vector based on an image.
     """
 
-    def __init__(self, num_in_chans=3, num_feats=512, encoder=None):
+    def __init__(self, num_in_chans=3, num_feats=512, encoder=None, scale_bias=1.0, scale_lr=0.05):
         """
         :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
         :param encoder: An feature extractor of an image. If None, resnet18 will bes used.
         :param num_feats: The number of extracted features from the encoder.
+        :param scale_bias: bias term, which is added to the scale prediction. 
+        :param scale_lr: learning rate, which is applied solely to the scale prediction
         """
         super(CameraPredictor, self).__init__()
 
-        self.conv1 = nn.Conv2d(num_in_chans, 3, 1)
+        self.conv1 = nn.Conv2d(in_channels=num_in_chans,
+                               out_channels=3,
+                               kernel_size=1)
 
         # allows us to use only one shared encoder for all camera hypotheses in the multi-cam predictor.
         if not encoder:
@@ -36,6 +40,9 @@ class CameraPredictor(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(num_feats, 8)
         )
+
+        self.scale_bias = scale_bias
+        self.scale_lr = scale_lr
 
     def forward(self, x: torch.Tensor, as_vec: bool = False) -> Union[torch.Tensor, Tuple[Any, Any, Any, Any]]:
         """
@@ -59,7 +66,17 @@ class CameraPredictor(nn.Module):
         x = x.view(-1, self._num_feats)
         x = self.fc(x)
 
-        return x if as_vec else vec_to_tuple(x)
+        # apply scale parameters
+        scale_raw = self.scale_lr * x[..., 0] + self.scale_bias
+        scale = F.relu(scale_raw) + 1E-12  # minimum scale is 0.0
+
+        # normalize quaternions
+        norm_quats = F.normalize(x[..., 3:7])
+
+        z = torch.cat(
+            (scale.unsqueeze(-1), x[..., 1:3], norm_quats, x[..., 7:]), dim=-1)
+
+        return z if as_vec else vec_to_tuple(z)
 
 
 class MultiCameraPredictor(nn.Module):
@@ -101,12 +118,8 @@ class MultiCameraPredictor(nn.Module):
         prob_logits = pred_pose[..., 7]
         probs = F.softmax(prob_logits, dim=1)
 
-        #  only positive scales
-        scale_logits = pred_pose[..., 0]
-        scale = F.relu(scale_logits)
-
         pred_pose_new = torch.cat(
-            (scale.unsqueeze(-1), pred_pose[..., 1:-1, ], probs.unsqueeze(-1)), dim=-1)
+            (pred_pose[..., :-1, ], probs.unsqueeze(-1)), dim=-1)
 
         dist = torch.distributions.multinomial.Multinomial(probs=probs)
 
