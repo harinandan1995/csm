@@ -130,7 +130,7 @@ def diverse_loss(probs):
     :return: Sum of entropy of the probabilities
     """
 
-    entropy = -torch.log(probs + 1E-9) * probs
+    entropy = torch.log(probs + 1E-9) * probs
     entropy = entropy.sum(1).mean()
 
     return entropy

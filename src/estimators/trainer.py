@@ -55,14 +55,14 @@ class ITrainer:
 
         self.config.update(kwargs)
 
-        epoch_bar = tqdm(range(self.config.epochs), position=0)
+        epoch_bar = tqdm(range(self.config.epochs), position=0, dynamic_ncols=True)
         for epoch in epoch_bar:
 
             epoch_bar.set_description('Running %sth epoch' % epoch)
             running_loss = 0
             self._epoch_start_call(epoch, self.config.epochs)
 
-            batch_bar = tqdm(self.data_loader, position=1, leave=False)
+            batch_bar = tqdm(self.data_loader, position=1, leave=False, dynamic_ncols=True)
             for step, batch in enumerate(batch_bar):
 
                 batch_bar.set_description('Training with %sth batch' % step)
