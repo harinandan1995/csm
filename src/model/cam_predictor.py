@@ -1,8 +1,12 @@
-from typing import Tuple, Union, Any
+from typing import Any, Tuple, Union
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pytorch3d.transforms import (euler_angles_to_matrix,
+                                  matrix_to_euler_angles, matrix_to_quaternion,
+                                  quaternion_multiply, quaternion_to_matrix)
 
 
 class CameraPredictor(nn.Module):
@@ -16,8 +20,9 @@ class CameraPredictor(nn.Module):
         :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
         :param encoder: An feature extractor of an image. If None, resnet18 will bes used.
         :param num_feats: The number of extracted features from the encoder.
-        :param scale_bias: bias term, which is added to the scale prediction. 
-        :param scale_lr: learning rate, which is applied solely to the scale prediction
+        :param scale_bias: bias term in R, which is added to the scale prediction.
+        :param scale_lr: learning rate in R, scalar which is multiplied with the predicted scale factor,
+                        regularizes the amount of adjustment applied to the scale bias
         """
         super(CameraPredictor, self).__init__()
 
@@ -97,6 +102,26 @@ class MultiCameraPredictor(nn.Module):
         self.cam_preds = nn.ModuleList(
             [CameraPredictor(encoder=_encoder, **kwargs) for _ in range(num_hypotheses)])
 
+        # taken from the original repo
+        base_rotation = matrix_to_quaternion(
+            euler_angles_to_matrix(torch.FloatTensor([0.5, 0, 0])*np.pi, "XYZ")).unsqueeze(0)  # rotation by PI/2 around the x-axis
+        base_bias = matrix_to_quaternion(
+            euler_angles_to_matrix(torch.FloatTensor([0, 0.25, 0])*np.pi, "XYZ")).unsqueeze(0)  # rotation by PI/4 around the y-axis
+
+        # base_rotation = torch.FloatTensor(
+        #     [0.9239, 0, 0.3827, 0]).unsqueeze(0).unsqueeze(0)  # pi/4 (45° )
+        # # base_rotation = torch.FloatTensor([ 0.7071,  0 , 0.7071,   0]).unsqueeze(0).unsqueeze(0) ## pi/2
+        # base_bias = torch.FloatTensor(
+        #     [0.7071, 0.7071, 0, 0]).unsqueeze(0).unsqueeze(0)  # 90° by x-axis
+
+        # taken from the original repo
+        self.cam_biases = [base_bias]
+        for i in range(1, self.num_hypotheses):
+            self.cam_biases.append(quaternion_multiply(
+                base_rotation, self.cam_biases[i - 1]))
+
+        self.cam_biases = torch.stack(self.cam_biases).squeeze().cuda()
+
     def forward(self, x):
         """
         Predict a certain number of camera poses. Samples one of the poses according to a predicted probability.
@@ -118,15 +143,20 @@ class MultiCameraPredictor(nn.Module):
         prob_logits = pred_pose[..., 7]
         probs = F.softmax(prob_logits, dim=1)
 
+        quats = pred_pose[..., 3:7]
+
+        bias_quats = self.cam_biases.unsqueeze(0).repeat(quats.size(0), 1, 1)
+        new_quats = quaternion_multiply(quats, bias_quats)
         pred_pose_new = torch.cat(
-            (pred_pose[..., :-1, ], probs.unsqueeze(-1)), dim=-1)
+            (pred_pose[..., :3], new_quats, probs.unsqueeze(-1)), dim=-1)
 
+        # taken from the original repo
         dist = torch.distributions.multinomial.Multinomial(probs=probs)
-
         # get index of hot-one in one-hot encoded vector. Delivers the index of the camera which should be sampled.
         sample_idx = dist.sample().argmax(dim=1)
         indices = sample_idx.unsqueeze(-1).repeat(1, 8).unsqueeze(1)
-        sampled_cam = torch.gather(pred_pose, dim=1, index=indices).view(-1, pred_pose.size(-1))
+        sampled_cam = torch.gather(
+            pred_pose, dim=1, index=indices).view(-1, pred_pose.size(-1))
         sampled_cam = vec_to_tuple(sampled_cam)
 
         return sampled_cam, sample_idx, vec_to_tuple(pred_pose_new)
