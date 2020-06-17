@@ -130,15 +130,17 @@ def compute_dt_barrier(mask, k=50):
     return dist
 
 
-def get_texture_map(img_path, device='cuda'):
+def get_texture_map(img_path):
 
     texture_map = Image.open(img_path).resize((256, 256), Image.ANTIALIAS)
     texture_map = torch.from_numpy(np.asarray(texture_map)).permute(2, 0, 1)
 
-    return texture_map.to(device=device, dtype=torch.float) / 255
+    return texture_map.to(dtype=torch.float) / 255
 
 
-def get_template_texture(vertices, faces, texture_map, device='cuda'):
+def get_template_texture(vertices: torch.tensor, faces: torch.tensor, texture_map: torch.tensor):
+
+    device = vertices.device
 
     verts_uv = convert_3d_to_uv_coordinates(vertices)
     vertex_rgb = torch.nn.functional.grid_sample(texture_map.unsqueeze(0),

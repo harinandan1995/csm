@@ -27,7 +27,7 @@ class CSMTrainer(ITrainer):
 
     """
 
-    def __init__(self, config: ConfigParser.ConfigObject, device='cuda'):
+    def __init__(self, config: ConfigParser.ConfigObject, device):
         """
         :param config: A dictionary containing the following parameters
             template: Path to the mesh template for the data as an obj file
@@ -188,7 +188,7 @@ class CSMTrainer(ITrainer):
         """
 
         model = CSM(self.dataset.template_mesh, self.dataset.mean_shape, self.config.use_gt_cam, 
-                    self.config.num_cam_poses, self.config.use_sampled_cam, self.device).to(self.device)
+                    self.config.num_cam_poses, self.config.use_sampled_cam).to(self.device)
 
         return model
 

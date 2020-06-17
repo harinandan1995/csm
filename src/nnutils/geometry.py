@@ -145,7 +145,7 @@ def get_gt_positions_grid(img_size):
     return grid
 
 
-def load_mean_shape(mean_shape_path, device='cuda'):
+def load_mean_shape(mean_shape_path, device):
     """
     Loads mean shape parameters from the mat file from mean_shape_path
     :param device: Default cuda

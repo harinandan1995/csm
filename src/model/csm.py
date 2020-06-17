@@ -26,7 +26,7 @@ class CSM(torch.nn.Module):
 
     def __init__(self, template_mesh: Meshes, mean_shape: dict,
                  use_gt_cam: bool = False, num_cam_poses: int = 8, 
-                 use_sampled_cam=False, device='cuda'):
+                 use_sampled_cam=False):
         """
         :param template_mesh: A pytorch3d.structures.Meshes object which will used for
         rendering depth and mask for a given camera pose
@@ -46,11 +46,9 @@ class CSM(torch.nn.Module):
         """
         super(CSM, self).__init__()
 
-        self.device = device
-
-        self.unet = UNet(4, 3).to(self.device)
-        self.uv_to_3d = UVto3D(mean_shape).to(self.device)
-        self.renderer = MaskAndDepthRenderer(meshes=template_mesh, device=self.device)
+        self.unet = UNet(4, 3)
+        self.uv_to_3d = UVto3D(mean_shape)
+        self.renderer = MaskAndDepthRenderer(meshes=template_mesh)
 
         self.use_gt_cam = use_gt_cam
         self.use_sampled_cam = use_sampled_cam

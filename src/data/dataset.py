@@ -16,7 +16,7 @@ class IDataset(Dataset):
     Interface for the dataset
     """
 
-    def __init__(self, config, device='cuda'):
+    def __init__(self, config, device):
 
         self.config = config
         self.img_size = config.img_size
@@ -28,7 +28,7 @@ class IDataset(Dataset):
         self.device = device
 
         self.mean_shape = self._get_mean_shape()
-        self.texture_map = get_texture_map(self.config.dir.texture)
+        self.texture_map = get_texture_map(self.config.dir.texture).to(self.device)
         self.template_mesh = self._get_template_mesh()
 
         self.kp_3d, self.kp_uv, self.kp_names, self.kp_perm = self.load_key_points()

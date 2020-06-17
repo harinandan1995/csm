@@ -11,7 +11,7 @@ from src.utils.utils import validate_paths
 
 class P3DDataset(IDataset):
 
-    def __init__(self, config, device='cuda'):
+    def __init__(self, config, device):
 
         super(P3DDataset, self).__init__(config, device)
 

@@ -10,7 +10,7 @@ class UVto3D(nn.Module):
     Module to calculate 3D points from UV values
     """
 
-    def __init__(self, mean_shape, device='cuda'):
+    def __init__(self, mean_shape):
 
         """
         :param mean_shape: is a dictionary containing the following parameters
@@ -26,14 +26,15 @@ class UVto3D(nn.Module):
 
         super(UVto3D, self).__init__()
 
-        self.face_inds = mean_shape['face_inds'].to(device)
-        self.verts_uv = mean_shape['uv_verts'].to(device)
-        self.verts_3d = mean_shape['verts'].to(device)
-        self.faces = mean_shape['faces'].to(device)
+        self.face_inds = mean_shape['face_inds']
+        self.verts_uv = mean_shape['uv_verts']
+        self.verts_3d = mean_shape['verts']
+        self.faces = mean_shape['faces']
 
         self.uv_res = mean_shape['uv_map'].shape
-        self.uv_map_size = torch.tensor(
-            [self.uv_res[1] - 1, self.uv_res[0] - 1], dtype=torch.float32).view(1, 2).to(device)
+        self.uv_map_size = torch.nn.Parameter(torch.tensor(
+            [self.uv_res[1] - 1, self.uv_res[0] - 1], dtype=torch.float32).view(1, 2), 
+            requires_grad=False)
 
     def forward(self, uv: torch.Tensor) -> torch.Tensor:
 
