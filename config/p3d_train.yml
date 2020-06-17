@@ -25,6 +25,7 @@ train:
   checkpoint: ''
   out_dir: './out'
   use_gt_cam: False
+  use_sampled_cam: False
   num_cam_poses: 8
   log:
     image_summary_step: 30
