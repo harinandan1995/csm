@@ -93,7 +93,13 @@ class CSMTrainer(ITrainer):
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask, pred_out):
+    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict) -> torch.tensor:
+        """Calculates the loss from the output
+
+        :param mask: (B X 1 X H X W) foreground mask
+        :param pred_out: A dictionary cotaining the output of the CSM model
+        :return: The computed loss from the output for the batch
+        """
 
         pred_z = pred_out['pred_z']
         pred_masks = pred_out['pred_masks']
@@ -102,21 +108,31 @@ class CSMTrainer(ITrainer):
 
         loss = torch.zeros_like(self.running_loss)
 
-        loss[0] = geometric_cycle_consistency_loss(self.gt_2d_pos_grid, pred_positions, mask)
-        loss[1] = visibility_constraint_loss(pred_depths, pred_z, mask)
+        prob_coeffs = None
+        if not self.config.use_gt_cam and not self.config.use_sampled_cam:
+            _, _, _, prob_coeffs = pred_out['pred_poses']
+            prob_coeffs = torch.add(prob_coeffs, 0.1)
+
+        if self.config.loss.geometric > 0:
+            loss[0] = self.config.loss.geometric * geometric_cycle_consistency_loss(
+                self.gt_2d_pos_grid, pred_positions, mask, coeffs=prob_coeffs)
+        
+        if self.config.loss.visibility > 0:
+            loss[1] = self.config.loss.visibility * visibility_constraint_loss(
+                pred_depths, pred_z, mask, coeffs=prob_coeffs)
+
         if not self.config.use_gt_cam:
-            pred_scale, pred_trans, pred_quat, pred_prob = pred_out['pred_poses']
-            loss[2] = mask_reprojection_loss(mask, pred_masks)
-            loss[3] = diverse_loss(pred_prob)
-            loss[4] = quaternion_regularization_loss(pred_quat)
+            _, _, pred_quat, pred_prob = pred_out['pred_poses']
+            if self.config.loss.mask > 0: 
+                loss[2] = self.config.loss.mask * mask_reprojection_loss(mask, pred_masks, coeffs=prob_coeffs)
+            if self.config.loss.diverse > 0:
+                loss[3] = self.config.loss.diverse * diverse_loss(pred_prob)
+            if self.config.loss.quat > 0:
+                loss[4] = self.config.loss.quat * quaternion_regularization_loss(pred_quat)
 
         self.running_loss = torch.add(self.running_loss, loss)
-        
-        loss = self.config.loss.geometric * loss[0] + self.config.loss.visibility * loss[1] + \
-               self.config.loss.mask * loss[2] + self.config.loss.diverse * loss[3] + \
-               self.config.loss.quat * loss[4]
 
-        return loss
+        return loss.sum()
 
     def _epoch_end_call(self, current_epoch, total_epochs, total_steps):
         # Save checkpoint after every 10 epochs
@@ -171,8 +187,8 @@ class CSMTrainer(ITrainer):
         :return: A torch model satisfying the above input output structure
         """
 
-        model = CSM(self.dataset.template_mesh, self.dataset.mean_shape,
-                    self.config.use_gt_cam, self.config.num_cam_poses, self.device).to(self.device)
+        model = CSM(self.dataset.template_mesh, self.dataset.mean_shape, self.config.use_gt_cam, 
+                    self.config.num_cam_poses, self.config.use_sampled_cam, self.device).to(self.device)
 
         return model
 
@@ -209,7 +225,10 @@ class CSMTrainer(ITrainer):
         """
 
         loss_values = torch.mean(geometric_cycle_consistency_loss(
-            self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2)
+            self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2, keepdim=True)
+        
+        loss_values = loss_values.view(-1, 1, loss_values.size(-2), loss_values.size(-2))
+
         loss_values = (loss_values - loss_values.min())/(loss_values.max()-loss_values.min())
         self.summary_writer.add_images('%d/pred/geometric' % epoch, loss_values, sum_step)
 
