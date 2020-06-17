@@ -3,12 +3,13 @@ from typing import Tuple
 import numpy as np
 import torch
 import torch.nn as nn
-from pytorch3d.renderer import (
-    SoftSilhouetteShader, RasterizationSettings, MeshRenderer, MeshRasterizer, BlendParams,
-    OpenGLOrthographicCameras,
-    PointLights, TexturedSoftPhongShader
-)
+
+from pytorch3d.renderer import (BlendParams, MeshRasterizer, MeshRenderer,
+                                OpenGLOrthographicCameras, PointLights,
+                                RasterizationSettings, SoftSilhouetteShader,
+                                TexturedSoftPhongShader)
 from pytorch3d.structures import Meshes
+
 
 """
 1. Option: distance, elevation, azimuth
@@ -40,7 +41,7 @@ class MaskAndDepthRenderer(nn.Module):
             cameras=cameras,
             raster_settings=RasterizationSettings(
                 image_size=image_size,
-                faces_per_pixel=5)
+                faces_per_pixel=100)
         )
 
         self._shader = SoftSilhouetteShader(blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
@@ -61,7 +62,6 @@ class MaskAndDepthRenderer(nn.Module):
 
         # extract masks from alpha channel of rgba image
         masks = silhouettes[..., 3]
-        # masks = torch.ceil(masks)  # converts silhouette to 1-0 masks
 
         return masks, depth_maps[..., 0]
 
