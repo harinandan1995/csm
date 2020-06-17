@@ -12,7 +12,7 @@ from src.utils.utils import validate_paths
 
 class ImnetDataset(IDataset):
 
-    def __init__(self, config, device='cuda'):
+    def __init__(self, config, device):
         self.cache_dir = config.dir.cache_dir
 
         super(ImnetDataset, self).__init__(config, device)

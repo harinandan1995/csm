@@ -11,7 +11,7 @@ from src.utils.utils import validate_paths
 
 class CubDataset(IDataset):
 
-    def __init__(self, config, device='cuda'):
+    def __init__(self, config, device):
 
         super(CubDataset, self).__init__(config, device)
 

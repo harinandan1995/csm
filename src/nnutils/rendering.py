@@ -23,7 +23,7 @@ from pytorch3d.structures import Meshes
 class MaskAndDepthRenderer(nn.Module):
     """Pytorch Module combining the mask and the depth renderer."""
 
-    def __init__(self, meshes: Meshes, device, image_size=256):
+    def __init__(self, meshes: Meshes, image_size=256):
         """
         Initialization of the Renderer Class. Instances of the mask and depth renderer are create on corresponding
         device.
@@ -33,6 +33,7 @@ class MaskAndDepthRenderer(nn.Module):
         """
         super().__init__()
         self.meshes = meshes
+        device = meshes.device
 
         # TODO: check how to implement weak perspective (scaled orthographic).
         cameras = OpenGLOrthographicCameras(device=device)
