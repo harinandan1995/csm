@@ -54,7 +54,7 @@ class CSM(torch.nn.Module):
         self.use_sampled_cam = use_sampled_cam
 
         if not self.use_gt_cam:
-            self.multi_cam_pred = MultiCameraPredictor(num_hypotheses=num_cam_poses)
+            self.multi_cam_pred = MultiCameraPredictor(num_hypotheses=num_cam_poses,device=template_mesh.device)
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
                 scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor):

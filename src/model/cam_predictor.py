@@ -88,7 +88,7 @@ class MultiCameraPredictor(nn.Module):
 
     """Module for predicting a set of camera poses and a corresponding probabilities."""
 
-    def __init__(self, num_hypotheses=8, **kwargs):
+    def __init__(self, num_hypotheses=8, device="cuda", **kwargs):
         """
 
         :param num_hypotheses: number of camera poses which should be predicted.
@@ -120,7 +120,7 @@ class MultiCameraPredictor(nn.Module):
             self.cam_biases.append(quaternion_multiply(
                 base_rotation, self.cam_biases[i - 1]))
 
-        self.cam_biases = torch.stack(self.cam_biases).squeeze().cuda()
+        self.cam_biases = torch.stack(self.cam_biases).squeeze().to(device)
 
     def forward(self, x):
         """
