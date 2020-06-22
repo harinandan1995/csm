@@ -89,11 +89,11 @@ class CSMTrainer(ITrainer):
 
         pred_out = self.model(img, mask, scale, trans, quat)
 
-        loss = self._calculate_loss_for_predictions(mask, pred_out)
+        loss = self._calculate_loss_for_predictions(mask, pred_out, epoch < self.config.pose_warmup_epochs)
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict) -> torch.tensor:
+    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, pose_warmup: bool = False) -> torch.tensor:
         """Calculates the loss from the output
 
         :param mask: (B X 1 X H X W) foreground mask
@@ -113,11 +113,11 @@ class CSMTrainer(ITrainer):
             _, _, _, prob_coeffs = pred_out['pred_poses']
             prob_coeffs = torch.add(prob_coeffs, 0.1)
 
-        if self.config.loss.geometric > 0:
+        if self.config.loss.geometric > 0 and not pose_warmup:
             loss[0] = self.config.loss.geometric * geometric_cycle_consistency_loss(
                 self.gt_2d_pos_grid, pred_positions, mask, coeffs=prob_coeffs)
         
-        if self.config.loss.visibility > 0:
+        if self.config.loss.visibility > 0 and not pose_warmup:
             loss[1] = self.config.loss.visibility * visibility_constraint_loss(
                 pred_depths, pred_z, mask, coeffs=prob_coeffs)
 
@@ -125,9 +125,9 @@ class CSMTrainer(ITrainer):
             _, _, pred_quat, pred_prob = pred_out['pred_poses']
             if self.config.loss.mask > 0: 
                 loss[2] = self.config.loss.mask * mask_reprojection_loss(mask, pred_masks, coeffs=prob_coeffs)
-            if self.config.loss.diverse > 0:
+            if self.config.loss.diverse > 0 and not pose_warmup:
                 loss[3] = self.config.loss.diverse * diverse_loss(pred_prob)
-            if self.config.loss.quat > 0:
+            if self.config.loss.quat > 0 and not pose_warmup:
                 loss[4] = self.config.loss.quat * quaternion_regularization_loss(pred_quat)
 
         self.running_loss = torch.add(self.running_loss, loss)

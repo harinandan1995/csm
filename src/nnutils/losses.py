@@ -118,8 +118,8 @@ def quaternion_regularization_loss(quats: torch.tensor):
     quats_y = torch.gather(quats, dim=1, index=quat_perm[1].view(1, -1, 1).repeat(len(quats), 1, 4))
     inter_quats = hamilton_product(quats_x, quat_conj(quats_y))
     quatAng = quat2ang(inter_quats).view(len(inter_quats), num_cam_poses - 1, -1)
-    quatAng = -1 * torch.nn.functional.max_pool1d(-1 * quatAng.permute(0, 2, 1), num_cam_poses - 1,
-                                                  stride=1).squeeze()
+    quatAng = -1 * torch.nn.functional.max_pool1d(
+        -1 * quatAng.permute(0, 2, 1), num_cam_poses - 1, stride=1).squeeze()
     return (np.pi - quatAng).mean()
 
 
