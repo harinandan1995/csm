@@ -1,5 +1,5 @@
 dataset:
-  category: 'bird'
+  category: 'horse'
   img_size: 256
   img_height: 320
   img_width: 512
@@ -13,8 +13,8 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/horse/map3.png'
-    data_dir: 'datasets/IMAGENET'
-    cache_dir: 'datasets/cachedir/'
+    data_dir: 'datasets/ImageNet'
+    cache_dir: 'datasets/cachedir'
 
 train:
   batch_size: 5
@@ -26,6 +26,7 @@ train:
   use_gt_cam: True
   use_sampled_cam: False
   num_cam_poses: 8
+  pose_warmup_epochs: 10
   log:
     loss_step: 10
     image_summary_step: 30

@@ -1,8 +1,9 @@
 import argparse
 import os
 import os.path as osp
-
 from datetime import datetime
+
+from tqdm import tqdm
 
 
 def validate_paths(*args):
@@ -26,6 +27,13 @@ def get_date():
 def get_time():
     date_time = datetime.now()
     return date_time.strftime("%H%M%S")
+
+
+class DownloadProgressBar(tqdm):
+    def update_to(self, b=1, bsize=1, tsize=None):
+        if tsize is not None:
+            self.total = tsize
+        self.update(b * bsize - self.n)
 
 
 def str2bool(v):

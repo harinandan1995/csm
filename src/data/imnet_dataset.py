@@ -13,13 +13,13 @@ from src.utils.utils import validate_paths
 class ImnetDataset(IDataset):
 
     def __init__(self, config, device):
-        self.cache_dir = config.dir.cache_dir
+
+        self.category = config.category
+        self.sysnet_id = get_sysnet_id_for_imnet_class(config.category)
 
         super(ImnetDataset, self).__init__(config, device)
 
-        self.sysnet_id = get_sysnet_id_for_imnet_class(self.config.category)
-        self.img_dir = osp.join(config.dir.data_dir, 'ImageSets', self.sysnet_id)
-        self.category = self.config.category
+        self.img_dir = osp.join(config.dir.data_dir, 'images', self.sysnet_id)        
         self.anno = []
         self.anno_sfm = []
         self.num_samples = 0
@@ -40,8 +40,8 @@ class ImnetDataset(IDataset):
     def load_key_points(self):
 
         kp_perm = np.linspace(0, 9, 10).astype(np.int)
-        kp_names = ['lpsum' for _ in range(len(self.kp_perm))]
-        kp_uv = np.random.uniform(0, 1, (len(self.kp_perm), 2))
+        kp_names = ['lpsum' for _ in range(len(kp_perm))]
+        kp_uv = np.random.uniform(0, 1, (len(kp_perm), 2))
 
         return None, kp_uv, kp_names, kp_perm
 
@@ -63,7 +63,7 @@ class ImnetDataset(IDataset):
 
     def load_data(self):
 
-        cache_dir = self.config.dir.cache_dir
+        cache_dir = osp.join(self.config.dir.cache_dir, 'imnet')
 
         anno_path = osp.join(cache_dir, 'data', '%s_%s.mat' % (self.sysnet_id, self.config.split))
         anno_sfm_path = osp.join(cache_dir, 'sfm', '%s_%s.mat' % (self.sysnet_id, self.config.split))
