@@ -9,6 +9,7 @@ from src.data.p3d_dataset import P3DDataset
 from src.estimators.tester import ITester
 from src.model.csm import CSM
 from src.nnutils.color_transform import draw_key_points, sample_uv_contour
+from src.nnutils.metrics import calculate_correct_key_points
 from src.utils.config import ConfigParser
 
 
@@ -22,6 +23,10 @@ class KPTransferTester(ITester):
         self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
         self.num_kps = len(self.dataset.kp_names)
 
+        self.acc = []
+        for alpha in self.config.alpha:
+            self.acc.append(torch.zeros([3]))
+
     def _batch_call(self, step, batch_data):
 
         src, tar = batch_data
@@ -29,6 +34,8 @@ class KPTransferTester(ITester):
         src_img = src['img'].to(self.device, dtype=torch.float)
         tar_img = tar['img'].to(self.device, dtype=torch.float)
         tar_mask = tar['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
+
+        height, width = src_img.size(-2), src_img.size(-1)
 
         src_pred_out = self._call_model(src)
         tar_pred_out = self._call_model(tar)
@@ -39,10 +46,25 @@ class KPTransferTester(ITester):
         tar_kp = tar['kp'].to(self.device, dtype=torch.float)
 
         tar_pred_kp = self._find_target_kps(src_kp, src_pred_out['uv'], tar_pred_out['uv'], tar_mask)
-        tar_pred_kp = torch.cat((tar_pred_kp, self._convert_to_int_indices(src_kp)[:, :, 2:].to(torch.int64)), dim=2)
+        src_kp = self._convert_to_int_indices(src_kp)
+        tar_kp = self._convert_to_int_indices(tar_kp)
+        tar_pred_kp = torch.cat((tar_pred_kp, src_kp[:, :, 2:].to(torch.int64)), dim=2)
+
+        out = self._calculate_acc(src_kp, tar_kp, tar_pred_kp, height, width)
 
         self._add_kp_summaries(self._convert_to_int_indices(src_kp), self._convert_to_int_indices(tar_kp),
                                tar_pred_kp, src_img, tar_img, step)
+
+        return out
+
+    def _calculate_acc(self, src_kp, tar_kp, tar_pred_kp, height, width):
+
+        out = {}
+        for i, alpha in enumerate(self.config.alpha):
+            self.acc[i] += calculate_correct_key_points(src_kp, tar_kp, tar_pred_kp, alpha * height, alpha * width)
+            out['acc' + str(i)] = self.acc[i][0] / self.acc[i][2]
+        
+        return out
     
     def _call_model(self, data):
         """
@@ -65,11 +87,13 @@ class KPTransferTester(ITester):
     def _convert_to_int_indices(float_indices):
         """
         Converts float indices [-1, 1] to int indices [0, 255]
-        :param float_indices: A tensor containing the float indices [-1, 1]
-        :return: A tensor containing the corresponding integer indices
+        :param float_indices: (B X KP X 3) containing the float indices [-1, 1] and indicator value
+        :return: A tensor containing the corresponding integer indices and the indicator value
         """
 
-        return (255 * (float_indices + 1) // 2).to(torch.int32)
+        float_indices[:, :, :2] = (255 * (float_indices[:, :, :2] + 1) // 2).to(torch.int32)
+
+        return float_indices
 
     def _find_target_kps(self, src_kp, src_uv, tar_uv, tar_mask):
         """
@@ -132,7 +156,8 @@ class KPTransferTester(ITester):
         model = CSM(self.dataset.template_mesh,
                     self.dataset.mean_shape,
                     self.config.use_gt_cam,
-                    self.device).to(self.device)
+                    self.config.num_cam_poses,
+                    self.config.use_sampled_cam).to(self.device)
 
         return model
 

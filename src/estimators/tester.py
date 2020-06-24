@@ -44,7 +44,8 @@ class ITester:
         for step, batch_data in enumerate(batch_bar):
 
             batch_bar.set_description('Testing %sth batch' % step)
-            self._batch_call(step, batch_data)
+            stats = self._batch_call(step, batch_data)
+            batch_bar.set_postfix(stats)
 
         self._test_end_call()
 
@@ -81,7 +82,7 @@ class ITester:
         :return:
         """
 
-        return
+        return {}
 
     def _batch_call(self, step, batch_data):
         """
