@@ -49,11 +49,9 @@ class KPTransferTester(ITester):
         src_kp = self._convert_to_int_indices(src_kp)
         tar_kp = self._convert_to_int_indices(tar_kp)
         tar_pred_kp = torch.cat((tar_pred_kp, src_kp[:, :, 2:].to(torch.int64)), dim=2)
-
         out = self._calculate_acc(src_kp, tar_kp, tar_pred_kp, height, width)
 
-        self._add_kp_summaries(self._convert_to_int_indices(src_kp), self._convert_to_int_indices(tar_kp),
-                               tar_pred_kp, src_img, tar_img, step)
+        self._add_kp_summaries(src_kp, tar_kp, tar_pred_kp, src_img, tar_img, step)
 
         return out
 
