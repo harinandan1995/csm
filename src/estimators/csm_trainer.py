@@ -61,6 +61,8 @@ class CSMTrainer(ITrainer):
 
         # Running losses to calculate mean loss per epoch for all types of losses
         self.running_loss = torch.tensor([0, 0, 0, 0, 0], dtype=torch.float32)
+        if self.config.use_gt_cam:
+            self.config.pose_warmup_epochs = 0
 
     def _calculate_loss(self, step, batch, epoch):
         """

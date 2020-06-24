@@ -1,5 +1,5 @@
 dataset:
-  category: 'horse'
+  category: 'zebra'
   img_size: 256
   img_height: 320
   img_width: 512
@@ -36,6 +36,6 @@ train:
     visibility: 10
     mask: 2
   optim:
-    lr: 0.00006
+    lr: 0.0001
     beta1: 0.9
     type: 'adam'
