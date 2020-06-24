@@ -19,11 +19,14 @@ dataset:
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir/p3d'
 
 test:
-  batch_size: 32
+  batch_size: 8
   shuffle: True
   workers: 8
   out_dir: '/mnt/raid/csmteam/out'
   use_gt_cam: True
-  checkpoint: ''
+  num_cam_poses: 8
+  use_sampled_cam: True
+  alpha: [0.1]
+  checkpoint: '/mnt/raid/csmteam/out/2020-06-23/200649/checkpoints/model_071810_195'
   log:
     image_summary_step: 1
