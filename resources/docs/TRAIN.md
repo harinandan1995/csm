@@ -3,6 +3,7 @@ Data is available for the following categories
 For the categories from imagenet the sysnetid is also provided
 
 * bird - CUB
+* car - PASCAL3D
 * horse - imagenet (n02381460)
 * zebra - imagenet (n02391049)
 * bear - imagenet (n02131653)
@@ -22,6 +23,10 @@ wget http://www.vision.caltech.edu/visipedia-data/CUB-200-2011/CUB_200_2011.tgz 
 ```
 #### Imagenet Data
 * Download the images for the categories from imagenet [here](http://image-net.org/download)
+* For the category Zebra you can download the images as shown below
+```
+wget https://syncandshare.lrz.de/dl/fiTSYzwSJcC5Ku4a1JJDFyWN/ImageNet.tar.gz && tar -xvzf ImageNet.tar.gz
+```
 
 #### PASCAL Data
 * Downlaod the original data from [here](ftp://cs.stanford.edu/cs/cvgl/PASCAL3D+_release1.1.zip)
@@ -44,7 +49,7 @@ Coming soon ......
         * cachedir/
         * CUB_200_2011/
         * PASCAL3D+_release1.1/
-        * IMAGNET #TODO - I am not sure about the directory name will update once we get access
+        * ImageNet/images
     * resources/
     * src/
     * ...
@@ -56,21 +61,20 @@ Coming soon ......
 ```python 
 python run.py --config config/bird_train.yml --device cuda:0 train
 ``` 
-> Use device cpu if you want to use the CPU
+> Use `--device cpu` if you want to use the CPU
 
-**NOT READY - WILL BE READY ONCE WE GET IMAGENET DATA ACCESS**
 #### Imagenet
 ```python 
 python run.py --config config/imnet_train.yml --device cuda:0 train
 ``` 
-> Use device cpu if you want to use the CPU
+> Use `--device cpu` if you want to use the CPU
 
 #### PASCAL3D 1.1
-Currently annotations are only available for car class
+Annotations are only available for **car** class
 ```python 
 python run.py --config config/p3d_train.yml --device cuda:0 train
 ``` 
-
+> Use `--device cpu` if you want to use the CPU
 
 #### Config
 
