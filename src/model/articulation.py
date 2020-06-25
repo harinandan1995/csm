@@ -13,6 +13,7 @@ class TreeNode:
     self.children = []
 
 
+#TODO: test axis prediction if angle prediction is done.
 class Predictor(nn.Module):
     def __init__(self, num_parts, num_feats=512, num_rots=2, num_trans = 3, device='cuda', axis_move = False):
         super(QuatPredictorSingleAxis, self).__init__()
@@ -99,7 +100,7 @@ class Articulation(nn.Module):
 
         self._alpha = None
         if alpha:
-            self._alpha = alpha
+            self._alpha = torch.FloatTensor(alpha)
 
     def forward(self, feats):
         """
@@ -134,20 +135,30 @@ class Articulation(nn.Module):
 
         verts = self._mesh.verts_list()[0]
         verts = verts.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,1)
+        arti_verts = torch.zers_like(verts)
 
         if self._alpha:
+            alpha = self._alpha.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,3) #[N x K x P x 3]
+            alpha = alpha.transpose(2,3)                                            #[N x K x 3 x P]
+            non_soften_verts = torch.zers_like(verts)
+            non_soften_verts = non_soften_verts.unsqueeze(-1).repeat(1,1,1,1,self._num_parts) #[N x K x 3 x 1 x P]
+            for k in self._order_list:
+                non_soften_verts[..., k] =  torch.matmul(R[:,[k],...], verts) + t[:,[k],...]
+
+            non_soften_verts = non_soften_verts.transpose(3,4).squeeze(-1)  #[N x K x 3 X P]
+            arti_verts = (alpha * non_soften_verts).sum(-1)
 
         else:
             for k in self._order_list:
                 ele_k = self._p_to_v[k]
-                verts[:,ele_k,...] =  torch.matmul(R[:,[k],...], verts[:,ele_k,...]) + t[:,[k],...]
+                arti_verts[:,ele_k,...] =  torch.matmul(R[:,[k],...], verts[:,ele_k,...]) + t[:,[k],...]
                 
         
-        verts = verts.squeeze(-1)
+        arti_verts = arti_verts.squeeze(-1)
         t_old = t_old.squeeze(-1)
         loss = t_old.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
 
-        return verts, loss
+        return arti_verts, loss
 
 class MultiArticulation(nn.Module):
     """Module for predicting a set of articulation pose."""
