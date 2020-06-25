@@ -13,27 +13,27 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/horse/map3.png'
-    data_dir: 'datasets/ImageNet'
-    cache_dir: 'datasets/cachedir'
+    data_dir: '/mnt/raid/csmteam/datasets/ImageNet'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir'
 
 train:
-  batch_size: 5
-  epochs: 100
+  batch_size: 16
+  epochs: 250
   shuffle: True
-  workers: 4
+  workers: 16
   checkpoint: ''
-  out_dir: './out'
-  use_gt_cam: True
+  out_dir: '/mnt/raid/csmteam/out'
+  use_gt_cam: False
   use_sampled_cam: False
   num_cam_poses: 8
   pose_warmup_epochs: 10
   log:
-    image_summary_step: 30
+    image_summary_step: 50
     image_epoch: 1
   loss:
     geometric: 1
     visibility: 10
-    mask: 2
+    mask: 5
     diverse: 0.05
     quat: 0.1
   optim:
