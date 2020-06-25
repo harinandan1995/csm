@@ -60,7 +60,7 @@ class KPTransferTester(ITester):
         out = {}
         for i, alpha in enumerate(self.config.alpha):
             self.acc[i] += calculate_correct_key_points(src_kp, tar_kp, tar_pred_kp, alpha * height, alpha * width)
-            out['acc' + str(i)] = self.acc[i][0] / self.acc[i][2]
+            out['acc' + str(i)] = (self.acc[i][0] / self.acc[i][2]).item()
         
         return out
     
@@ -173,6 +173,9 @@ class KPTransferTester(ITester):
         :param merge: True or False. True if you want to merge the src and tar outputs into one image
         :return:
         """
+        if not self.config.add_summaries:
+            return
+
         src_kp_img = draw_key_points(src_img, src_kp, self.key_point_colors)
         tar_kp_img = draw_key_points(tar_img, tar_kp, self.key_point_colors)
         tar_pred_kp_img = draw_key_points(tar_img, tar_pred_kp, self.key_point_colors)
@@ -186,6 +189,9 @@ class KPTransferTester(ITester):
             self.summary_writer.add_images('tar/pred', tar_pred_kp_img, step)
 
     def _add_uv_summaries(self, src_pred_out, tar_pred_out, src, tar, step, merge=True):
+        
+        if not self.config.add_summaries:
+            return
 
         src_img = src['img'].to(self.device, dtype=torch.float)
         src_mask = src['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
