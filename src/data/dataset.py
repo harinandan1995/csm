@@ -150,7 +150,12 @@ class IDataset(Dataset):
 
         bbox, mask, parts, sfm_pose, img_path = self.get_data(index)
 
-        img = imageio.imread(img_path) / 255.0
+        # TODO: This is currently a hack to avoid invalid images from ImageNet
+        try:
+            img = imageio.imread(img_path) / 255.0
+        except:
+            img = mask
+        
         # Some are grayscale:
         if len(img.shape) == 2:
             img = np.repeat(np.expand_dims(img, 2), 3, axis=2)
