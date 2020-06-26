@@ -117,12 +117,16 @@ class CSM(torch.nn.Module):
             rotation, translation, pred_poses, camera_id = self._get_camera_extrinsics(img, scale, trans, quat)
 
         if self.use_arti and epochs >= self.arti_epochs:
+
             if self.use_gt_cam:
                 arti_verts, arti_translation = self.arti(img)
             else:
                 arti_verts, arti_translation = self.arti(img, camera_id)
 
-
+        
+        # TODO: add mesh articulation here, Daniel
+        # NOTE: we need N articulated meshes
+        
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
             sphere_points, rotation, translation)

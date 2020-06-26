@@ -36,6 +36,9 @@ class CameraPredictor(nn.Module):
         #else:
         #    self.encoder = encoder
 
+
+        # TODO: combine first conv layer with encoder into one module
+        
         self._num_feats = num_feats
 
         self.fc = nn.Sequential(
@@ -178,6 +181,4 @@ def vec_to_tuple(x):
     prob = x[..., 7]
 
     return scale, translate, quat, prob
-
-
 
