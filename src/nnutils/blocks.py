@@ -78,6 +78,7 @@ class ResNetConv(nn.Module):
 
         return x
 
+
 def get_encoder(trainable=False):
     """
     Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
@@ -85,8 +86,6 @@ def get_encoder(trainable=False):
     :param trainable: bool. whether to train the resnet layers  
     :return: Feature extractor from resnet18
     """
-
-
     resnet = torch.hub.load(
         'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
     encoder = nn.Sequential(*([*resnet.children()][:-1]))
