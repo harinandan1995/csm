@@ -78,8 +78,8 @@ class Articulation(nn.Module):
     It predicts part transforamtion in the form of vertcies coordinate based on an image.
     """
 
-    def __init__(self, mesh : Meshes, parts: list, num_parts: int, rotation_center: dict, 
-            parent: dict, encoder: None, alpha: None, num_feats=512, num_rots=2, num_trans = 3, device='cuda'):
+    def __init__(self,  template_mesh : Meshes, parts: list, num_parts: int, rotation_center: dict,
+            parent: dict, alpha=None, num_feats=512, num_rots=2, num_trans = 3,  encoder=None, device='cuda'):
         """
         :param mesh: The base mesh for the certain category.
         :param parts: K element list. Each element in the list represent the part of each vertice in mesh (range:[0, num_parts - 1])
@@ -108,19 +108,17 @@ class Articulation(nn.Module):
         self._num_trans = num_trans
         self._predictor = ArticulationPredictor(num_parts, num_feats, num_rots, num_trans, device)
 
-        self._mesh = mesh       
+        self._mesh =  template_mesh
         self._v_to_p = parts # list: vertice -> part
         # dict: part -> [vertices],  # dict: part -> num   
         self._p_to_v, self._p_n= get_p_to_v(parts, num_parts)    
         self._r_c = get_r_c(rotation_center, num_parts).to(device)
         self._r_c.requires_grad = False
 
-
         self._parent = parent
         self._relationship = get_relationship(parent) # p: [p, parent, grand_parent], no use now
         #tree, [p_1, p_2, ...] if x < y, p_x could not be parent of p_y
         self._tree, self._order_list = get_tree_order(parent)
-
 
         self._alpha = None
         if alpha:
@@ -129,7 +127,7 @@ class Articulation(nn.Module):
     def forward(self, x):
         """
         Predicts the articulation to an input features.
-        :param feats: [N x C x H x W]  The input images, for which the articulation should be predicted.
+        :param x: [N x C x H x W]  The input images, for which the articulation should be predicted.
             N - batch size
             C - the number of channel
             [H, W] - height and weight for images
@@ -177,50 +175,49 @@ class Articulation(nn.Module):
             for k in self._order_list:
                 ele_k = self._p_to_v[k]
                 arti_verts[:,ele_k,...] =  torch.matmul(R[:,[k],...], verts[:,ele_k,...]) + t[:,[k],...]
-                
-        
+
         arti_verts = arti_verts.squeeze(-1)
         t_old = t_old.squeeze(-1)
         loss = t_old.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
 
         return arti_verts, loss
 
+
 class MultiArticulation(nn.Module):
     """Module for predicting a set of articulation pose."""
 
-    def __init__(self, num_hypotheses=8, **kwargs):
+    def __init__(self, num_hypotheses=8, encoder = None, **kwargs):
         """
         :param num_hypotheses: number of articulation pose which should be predicted.
+        :param encoder: a list of encoder used in prediction
         :param kwargs: arguments which are passed through to the single articulation  predictors.
         """
         super(MultiArticulation, self).__init__()
         self.num_hypotheses = num_hypotheses
 
-        self.arti = nn.ModuleList(
-            [Articulation(**kwargs) for _ in range(num_hypotheses)])
-        
-    def foward(self, x):
+        if encoder:
+            self.arti = nn.ModuleList(
+                [Articulation(**kwargs) for _ in range(num_hypotheses)])
+        else:
+            assert len(encoder) == num_hypotheses
+            self.arti = nn.ModuleList(
+                [Articulation(encoder[i], **kwargs) for i in range(num_hypotheses)])
+
+    def foward(self, x, index):
         """Predict a certain number of articulation. 
-        ::param feats: [N x C x H x W]  The input images, for which the articulation should be predicted.
+        ::param x: [N x C x H x W]  The input images, for which the articulation should be predicted.
             N - batch size
             C - the number of channel
             [H, W] - height and weight for images
             K - the number of mesh vertice
+        :param index: the index indicates which articulation is used
         :return: A tuple (verts, loss)
             - verts:[N x K x 3 x 8] All possible corrdinate of vertices for articulation prediction.
             - loss:[N x 8] The corresponding loss for translation.
 
         """
 
-        pred = [cpp(x) for cpp in self.arti ]
-        pred_verts, pred_loss = zip(*pred)
-        pred_verts = list(pred_verts)
-        pred_loss = list(pred_loss)
-        pred_verts = torch.stack(pred_verts, dim = -1)
-        pred_loss = torch.stack(pred_loss, dim = -1)
-
-        return pred_verts, pred_loss
-
+        return self.arti[index](x)
 
 
 def get_p_to_v( parts : list, num_parts : int):
