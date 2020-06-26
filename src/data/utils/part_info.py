@@ -6,6 +6,14 @@ from scipy.sparse import csr_matrix, csgraph
 import matplotlib.pyplot as plt
 
 def Part(fids, vids, name):
+    '''
+
+    :param fids: list, index of faces of this part
+    :param vids: list, index of vertices of this part
+    :param name: string, name of this part
+    :return:
+    pm: a Part dict
+    '''
     pm = {}
     pm['fids'] = fids
     pm['vids'] = vids
@@ -13,6 +21,17 @@ def Part(fids, vids, name):
     return pm
 
 def PartModel(id, fids, vids, children, is_main=False, name='NA'):
+    '''
+
+    :param id: int
+    :param fids: list, index of faces of this part
+    :param vids: list, index of vertices of this part
+    :param name: string, name of this part
+    :param children: list, children node of this part
+    :param is_main: bool, whether is the body
+    :return:
+    pm: a Part dict
+    '''
     pm = {}
     pm['id'] = id
     pm['fids'] = fids
@@ -23,6 +42,11 @@ def PartModel(id, fids, vids, children, is_main=False, name='NA'):
     return pm
 
 def complete_dpm(dpm):
+    '''
+
+    :param dpm: a dict contain info of all nodes
+    :return:
+    '''
     nodes = dpm['nodes']
     verts = dpm['verts']
     for pnode in dpm['nodes']:
@@ -67,6 +91,13 @@ def convert_mesh_to_graph(verts, faces):
 
 
 def compute_blend_alpha_m2(verts, nodes, mesh_distances):
+    '''
+
+    :param verts: array, V * 3
+    :param nodes:
+    :param mesh_distances:
+    :return:
+    '''
     nparts = len(nodes)
     blend_alpha = np.zeros((len(verts), nparts))
     for node in nodes:
@@ -212,7 +243,7 @@ def dump_blend_color_maps(model_dir, nodes, blend_alpha, verts, faces, tone='Red
         save_obj_with_vertex_color('mem_{}_{}'.format(name, tone), model_dir,
                                        mean_shape)
 
-def mesh_info(obj_class = 'horse',model_dir = 'models/'):
+def mesh_info(obj_class = 'horse',model_dir = 'datasets/cachedir/imnet/models/horse'):
     mesh_parts = trimesh.load(osp.join(model_dir, '{}_parts.obj'.format(obj_class)), process=False)
     mesh_one = trimesh.load_mesh(osp.join(model_dir, '{}.obj'.format(obj_class)), process=False)
     hierarchy_xml = osp.join(model_dir, 'hierarchy.xml')
@@ -234,11 +265,8 @@ def mesh_info(obj_class = 'horse',model_dir = 'models/'):
     complete_dpm(dpm)
 
     ass = dpm['alpha']
-    ass1 = np.concatenate((ass[:,2].reshape((642, 1)),ass[:,1].reshape((642, 1)),ass[:,3:],ass[:,0].reshape((642, 1))),axis=1)
-    # np.save('assigment.npy',ass)
     dump_blend_color_maps(model_dir, dpm['nodes'], dpm['alpha'], verts, faces, tone='Reds')
     part_verts = [-1] * len(verts)
-    part_id = {}
     part_parent = {0:-1}
     part_rotation_center = {}
     for i in dpm['nodes']:
@@ -247,48 +275,12 @@ def mesh_info(obj_class = 'horse',model_dir = 'models/'):
         for j in i['children']:
             part_parent[j] = i['id']
         if 'boundary' in i:
-            part_rotation_center[i['id']] = np.mean(i['boundary'],axis=0)
+            part_rotation_center[i['id']] = i['rc']
     part_rotation_center[0] = np.mean(verts[[350,346]],axis=0)
     for key in part_rotation_center.keys():
         part_rotation_center[key] = list(part_rotation_center[key])
-    return part_verts, part_parent, part_rotation_center, ass
-#a,b,c,d,e = mesh_info()
-#print(a)
-#print(b)
-#print(c)
-#print(d)
-# with open('info.txt',mode='w+',encoding='utf-8') as file:
-#     l = ''
-#     for i in part_verts:
-#         l += '{} '.format(i)
-#     file.write(l + '\n')
-#     l = ''
-#     for i in part_id:
-#         l += '{} {} '.format(i,part_id[i])
-#     file.write(l + '\n')
-#     l = ''
-#     for i in part_parent:
-#         l += '{} {} '.format(i,part_parent[i])
-#     file.write(l + '\n')
-#     l = ''
-#     for i in part_rotation_center:
-#         l += '{} {} '.format(i, part_parent[i])
-#     file.write(l + '\n')
-# file.close()
-#
-#
-# b = {}
-# c = {}
-# with open('info.txt',mode='r+',encoding='utf-8') as file:
-#     a = file.readline().split()
-#     a = [int(i) for i in a]
-#     b1 = file.readline().split()
-#     part_n = len(b1)// 2
-#     for i in range(part_n):
-#         b[b1[2*i]] = int(b1[2*i+1])
-#     c1 = file.readline().split()
-#     part_n = len(c1) // 2
-#     for i in range(part_n):
-#         c[int(c1[2 * i])] = int(c1[2 * i + 1])
-# file.close()
+    arti_info_mesh = {'parts':part_verts, 'num_parts': len(part_rotation_center),
+                      'rotation_center': part_rotation_center,'parent': part_parent, 'alpha':ass}
+    return arti_info_mesh
+
 
