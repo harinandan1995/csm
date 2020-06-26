@@ -88,19 +88,18 @@ class MultiCameraPredictor(nn.Module):
 
     """Module for predicting a set of camera poses and a corresponding probabilities."""
 
-    def __init__(self, num_hypotheses=8, device="cuda", **kwargs):
+    def __init__(self, num_hypotheses=8, encoder=None,device="cuda", **kwargs):
         """
 
         :param num_hypotheses: number of camera poses which should be predicted.
         :param kwargs: arguments which are passed through to the single camera predictors
         """
         super(MultiCameraPredictor, self).__init__()
-        _encoder = get_encoder(trainable=False)
 
         self.num_hypotheses = num_hypotheses
 
         self.cam_preds = nn.ModuleList(
-            [CameraPredictor(encoder=_encoder, **kwargs) for _ in range(num_hypotheses)])
+            [CameraPredictor(encoder=encoder, **kwargs) for _ in range(num_hypotheses)])
 
         # taken from the original repo
         base_rotation = matrix_to_quaternion(

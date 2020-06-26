@@ -179,7 +179,7 @@ class Articulation(nn.Module):
 
         arti_verts = arti_verts.squeeze(-1)
         t_net = t_net.squeeze(-1)
-        loss = t_net.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
+        #loss = t_net.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
 
         return arti_verts, t_net
 
