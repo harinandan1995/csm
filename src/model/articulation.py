@@ -213,8 +213,8 @@ class MultiArticulation(nn.Module):
             K - the number of mesh vertice
         :param id: the index indicates which articulation is used
         :return: A tuple (verts, loss)
-            - verts:[N x K x 3 ] All possible corrdinate of vertices for articulation prediction.
-            - loss:[N x P x 3] The corresponding net translation.
+            - verts:[N x K x 3] The corrdinate of vertices for articulation prediction.for i-th camera
+            - t_net:[N x ] The corresponding loss for translation.for i-th camera
 
         """
 
