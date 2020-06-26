@@ -203,19 +203,27 @@ class MultiArticulation(nn.Module):
             self.arti = nn.ModuleList(
                 [Articulation(encoder[i], **kwargs) for i in range(num_hypotheses)])
 
-    def foward(self, x, index):
+    def foward(self, x, id):
         """Predict a certain number of articulation. 
         ::param x: [N x C x H x W]  The input images, for which the articulation should be predicted.
             N - batch size
             C - the number of channel
             [H, W] - height and weight for images
             K - the number of mesh vertice
-        :param index: the index indicates which articulation is used
+        :param id: the index indicates which articulation is used
         :return: A tuple (verts, loss)
-            - verts:[N x K x 3 x 8] All possible corrdinate of vertices for articulation prediction.
-            - loss:[N x 8] The corresponding loss for translation.
+            - verts:[N x K x 3 ] All possible corrdinate of vertices for articulation prediction.
+            - loss:[N ] The corresponding loss for translation.
 
         """
+
+        #pred =  [ arti_forward(x) for arti_forward in self.arti ]
+        #pred_verts, pred_loss = zip(*pred)
+        #pred_verts = list(pred_verts)
+        #pred_loss = list(pred_loss)
+        #pred_verts = torch.stack(pred_verts, dim = -1)
+        #pred_loss = torch.stack(pred_loss, dim = -1)
+        #return pred_verts, pred_loss
 
         return self.arti[index](x)
 
