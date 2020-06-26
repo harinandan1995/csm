@@ -57,8 +57,9 @@ class CSM(torch.nn.Module):
         self.use_sampled_cam = use_sampled_cam
         self.use_arti = use_arti
 
-        if not self.use_gt_cam or use_arti:
-            self.encoder = get_encoder(num_in_chans, trainable=False)
+        if not self.use_gt_cam or self.use_arti:
+            self.conv1 = torch.nn.Conv2d(in_channels=num_in_chans, out_channels=3, kernel_size=1)
+            self.encoder = get_encoder(trainable=False)
 
         if not self.use_gt_cam:
             self.multi_cam_pred = MultiCameraPredictor(num_hypotheses=num_cam_poses,device=template_mesh.device)
@@ -108,8 +109,10 @@ class CSM(torch.nn.Module):
         sphere_points = torch.tanh(sphere_points)
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
-        img = self.encoder(img)
-        img = img.view(len(img),-1)
+        if not self.use_gt_cam or self.use_arti:
+            img = self.conv1(img)
+            img = self.encoder(img)
+            img = img.view(len(img),-1)
 
         if self.use_gt_cam:
             rotation, translation, pred_poses = self._get_camera_extrinsics(img, scale, trans, quat)
