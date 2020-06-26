@@ -134,3 +134,16 @@ def diverse_loss(probs):
     entropy = entropy.sum(1).mean()
 
     return entropy
+
+
+def articulation_loss(translation,  reduction='mean'):
+    """
+    :param [B X K X 3] translation 
+    :param reduction: 
+    :return: L2-loss for the translation
+    """
+    loss = translation.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
+    if reduction is "mean":
+        return loss.mean()
+    else:
+        return loss
