@@ -70,7 +70,7 @@ class CSM(torch.nn.Module):
                 self.arti = Articulation(device=template_mesh.device, **arti_mesh_info)
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
-                scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor):
+                scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor, epochs: int):
         """
         For the given img and mask
         - uses the unet to predict sphere coordinates
@@ -112,12 +112,17 @@ class CSM(torch.nn.Module):
             rotation, translation, pred_poses, camera_id = self._get_camera_extrinsics(img, scale, trans, quat)
 
         if self.use_arti and epochs >= self.arti_threshold:
+        # TODO: add articulation prediction here, Letian
+
             if self.use_gt_cam:
-                arti_verts, arti_translation = self.arti(img)
+                arti_verts, arti_translation = self.arti.forward(img)
             else:
-                arti_verts, arti_translation = self.arti(img, camera_id)
+                arti_verts, arti_translation = self.arti.forward(img, camera_id)
 
-
+        
+        # TODO: add mesh articulation here, Daniel
+        # NOTE: we need N articulated meshes
+        
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
             sphere_points, rotation, translation)

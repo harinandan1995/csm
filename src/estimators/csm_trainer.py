@@ -89,7 +89,7 @@ class CSMTrainer(ITrainer):
         trans = batch['trans'].to(self.device, dtype=torch.float)
         quat = batch['quat'].to(self.device, dtype=torch.float)
 
-        pred_out = self.model(img, mask, scale, trans, quat)
+        pred_out = self.model(img, mask, scale, trans, quat, epoch)
 
         loss = self._calculate_loss_for_predictions(mask, pred_out, epoch, epoch < self.config.pose_warmup_epochs)
 
@@ -134,7 +134,7 @@ class CSMTrainer(ITrainer):
                 loss[4] = self.config.loss.quat * quaternion_regularization_loss(pred_quat)
 
         #TODO:add config: use_arti & loss.arti & arti_threshold
-        if self.config.use_arti and epoch > self.config.arti_epochs:
+        if self.config.use_arti and epoch >= self.config.arti_epochs:
             pred_arti_translation = pred_out["pred_arti_translation"]
             loss[5] = self.config.loss.arti * articulation_loss(pred_arti_translation)
 

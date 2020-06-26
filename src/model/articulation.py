@@ -6,9 +6,9 @@ from pytorch3d.transforms import so3_exponential_map
 
 
 class TreeNode:
-  def __init__(self, x):
-    self.val = x
-    self.children = []
+    def __init__(self, x):
+        self.val = x
+        self.children = []
 
 
 #TODO: test axis prediction if angle prediction is done.
@@ -38,7 +38,8 @@ class ArticulationPredictor(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(num_feats, num_parts * (num_rots + num_trans))
         )
-        self.axis = nn.Parameter(torch.FloatTensor([1,0,0]).unsqueeze(0).repeat(num_parts, 1).to(device))
+        self.axis = nn.Parameter(torch.FloatTensor(
+            [1, 0, 0]).unsqueeze(0).repeat(num_parts, 1).to(device))
         if not axis_move:
             self.axis.requires_grad = False
 
@@ -63,12 +64,13 @@ class ArticulationPredictor(nn.Module):
         self.axis.data = F.normalize(self.axis, dim=-1).data
         axis = self.axis.unsqueeze(0).repeat(batch_size, 1, 1)
 
-        axis = axis.view(-1,3)
-        angle = angle.view(-1,3)
+        axis = axis.view(-1, 3)
+        angle = angle.view(-1, 3)
 
         R = so3_exponential_map(angle * axis)
         R = R.view(batch_size,self._num_parts,3,3)
         return R, vec_tran
+
 
 class Articulation(nn.Module):
     """
@@ -114,8 +116,9 @@ class Articulation(nn.Module):
         self._r_c.requires_grad = False
 
         self._parent = parent
-        self._relationship = get_relationship(parent) # p: [p, parent, grand_parent], no use now
-        #tree, [p_1, p_2, ...] if x < y, p_x could not be parent of p_y
+        # p: [p, parent, grand_parent], no use now
+        self._relationship = get_relationship(parent)
+        # tree, [p_1, p_2, ...] if x < y, p_x could not be parent of p_y
         self._tree, self._order_list = get_tree_order(parent)
 
         self._alpha = None
@@ -142,7 +145,7 @@ class Articulation(nn.Module):
 
         R, t = self._predictor(x)
 
-        #TODO: Add translation for future
+        # TODO: Add translation for future
         if True:
             t = torch.zeros([batch_size, self._num_parts, 3, 1]).to(self.device)
         
@@ -152,21 +155,25 @@ class Articulation(nn.Module):
         for k in self._order_list:
             t[:,k,...] += -torch.bmm(R[:,k,...],rotation_center[:,k,...]) + rotation_center[:,k,...]
             if self._parent[k] != -1:
-                R[:,k,...] = torch.bmm(R[:,self._parent[k],...],R[:,k,...])
-                t[:,k,...] = torch.bmm(R[:,self._parent[k],...],t[:,k,...]) + t[:,self._parent[k],...]
-
+                R[:, k, ...] = torch.bmm(
+                    R[:, self._parent[k], ...], R[:, k, ...])
+                t[:, k, ...] = torch.bmm(
+                    R[:, self._parent[k], ...], t[:, k, ...]) + t[:, self._parent[k], ...]
 
         verts = self._mesh.verts_list()[0]
-        verts = verts.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,1)
-        arti_verts = torch.zeros_like(verts, requires_grad = True)
+        verts = verts.unsqueeze(0).unsqueeze(-1).repeat(batch_size, 1, 1, 1)
+        arti_verts = torch.zeros_like(verts, requires_grad=True)
 
         if self._alpha:
-            alpha = self._alpha.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,3) #[N x K x P x 3]
-            alpha = alpha.transpose(2,3)                                            #[N x K x 3 x P]
-            non_soften_verts = torch.zeros_like(verts, requires_grad = True)
-            non_soften_verts = non_soften_verts.repeat(1,1,1,1,self._num_parts) #[N x K x 3 x P]
+            alpha = self._alpha.unsqueeze(
+                0).unsqueeze(-1).repeat(batch_size, 1, 1, 3)  # [N x K x P x 3]
+            alpha = alpha.transpose(2, 3)  # [N x K x 3 x P]
+            non_soften_verts = torch.zeros_like(verts, requires_grad=True)
+            non_soften_verts = non_soften_verts.repeat(
+                1, 1, 1, 1, self._num_parts)  # [N x K x 3 x P]
             for k in self._order_list:
-                non_soften_verts[..., k] =  (torch.matmul(R[:,[k],...], verts) + t[:,[k],...]).squeeze(-1)
+                non_soften_verts[..., k] = (torch.matmul(
+                    R[:, [k], ...], verts) + t[:, [k], ...]).squeeze(-1)
 
             arti_verts = (alpha * non_soften_verts).sum(-1)
 
@@ -180,6 +187,7 @@ class Articulation(nn.Module):
         #loss = t_net.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
 
         return arti_verts, t_net
+
 
 
 class MultiArticulation(nn.Module):
@@ -226,8 +234,7 @@ class MultiArticulation(nn.Module):
 
         return self.arti[index](x)
 
-
-def get_p_to_v( parts : list, num_parts : int):
+def get_p_to_v(parts: list, num_parts: int):
     parts_info = {}
     parts_stat = {}
     for i in range(num_parts):
@@ -240,18 +247,19 @@ def get_p_to_v( parts : list, num_parts : int):
 
     return parts_info, parts_stat
 
-def get_relationship( relationship : dict ):
+
+def get_relationship(relationship: dict):
     rela = {}
     for i in range(len(relationship)):
-      rela[i] = [i]
-      j = relationship[i]
-      while j != -1:
-        rela[i] = [j] + rela[i]
-        j = relationship[j]
+        rela[i] = [i]
+        j = relationship[i]
+        while j != -1:
+            rela[i] = [j] + rela[i]
+            j = relationship[j]
     return rela
-     
 
-def get_tree_order( relationship : dict):
+
+def get_tree_order(relationship: dict):
     tree_list = []
     order = []
     root = None
@@ -272,6 +280,7 @@ def get_tree_order( relationship : dict):
                 order.append(i)
         del tree_list[0]
     return root, order
+
 
 def get_r_c(rotation_center, num_parts):
     r_c_list = []
@@ -298,8 +307,7 @@ def get_encoder(trainable=False):
             param.requires_grad = True
     return encoder
 
-
-#def axang2quat(angle, axis):
+# def axang2quat(angle, axis):
 #    cangle = torch.cos(angle/2)
 #    sangle = torch.sin(angle/2)
 #    qw = cangle
