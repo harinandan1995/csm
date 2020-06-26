@@ -135,17 +135,16 @@ class Articulation(nn.Module):
 
         verts = self._mesh.verts_list()[0]
         verts = verts.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,1)
-        arti_verts = torch.zers_like(verts)
+        arti_verts = torch.zeros_like(verts, requires_grad = True)
 
         if self._alpha:
             alpha = self._alpha.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,3) #[N x K x P x 3]
             alpha = alpha.transpose(2,3)                                            #[N x K x 3 x P]
-            non_soften_verts = torch.zers_like(verts)
-            non_soften_verts = non_soften_verts.unsqueeze(-1).repeat(1,1,1,1,self._num_parts) #[N x K x 3 x 1 x P]
+            non_soften_verts = torch.zeros_like(verts, requires_grad = True)
+            non_soften_verts = non_soften_verts.repeat(1,1,1,1,self._num_parts) #[N x K x 3 x P]
             for k in self._order_list:
-                non_soften_verts[..., k] =  torch.matmul(R[:,[k],...], verts) + t[:,[k],...]
+                non_soften_verts[..., k] =  (torch.matmul(R[:,[k],...], verts) + t[:,[k],...]).squeeze(-1)
 
-            non_soften_verts = non_soften_verts.transpose(3,4).squeeze(-1)  #[N x K x 3 X P]
             arti_verts = (alpha * non_soften_verts).sum(-1)
 
         else:
