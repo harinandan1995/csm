@@ -78,7 +78,7 @@ class Articulation(nn.Module):
     It predicts part transforamtion in the form of vertcies coordinate based on an image.
     """
 
-    def __init__(self,  template_mesh : Meshes, parts: list, num_parts: int, rotation_center: dict,
+    def __init__(self,  template_mesh: Meshes, parts: list, num_parts: int, rotation_center: dict,
             parent: dict, alpha=None, num_feats=512, num_rots=2, num_trans = 3,  encoder=None, device='cuda'):
         """
         :param mesh: The base mesh for the certain category.
@@ -91,7 +91,7 @@ class Articulation(nn.Module):
         :param num_rots: The number of parameter used in rotation prediction.
         :param num_trans: The number of parameter used in translation prediction.
         :param device: 
-            K = number of mesh vertice, P = number of parts
+            K = the number of mesh vertice, P = the number of parts
         """
 
         super(Articulation, self).__init__()
@@ -108,7 +108,7 @@ class Articulation(nn.Module):
         self._num_trans = num_trans
         self._predictor = ArticulationPredictor(num_parts, num_feats, num_rots, num_trans, device)
 
-        self._mesh =  template_mesh
+        self._mesh = template_mesh
         self._v_to_p = parts # list: vertice -> part
         # dict: part -> [vertices],  # dict: part -> num   
         self._p_to_v, self._p_n= get_p_to_v(parts, num_parts)    
@@ -132,9 +132,10 @@ class Articulation(nn.Module):
             C - the number of channel
             [H, W] - height and weight for images
             K - the number of mesh vertice
+            P - the  number of parts
         :return: A tuple (verts, loss)
             - verts:[N x K x 3] The corrdinate of vertices for articulation prediction.
-            - loss:[N] The corresponding loss for translation.
+            - t_net:[N x ] The corresponding loss for translation.
         """
 
         x = self._encoder(x)
@@ -147,7 +148,7 @@ class Articulation(nn.Module):
         if True:
             t = torch.zeros([batch_size, self._num_parts, 3, 1]).to(self.device)
         
-        t_old = t
+        t_net = t
 
         rotation_center = self._r_c.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,1)
         for k in self._order_list:
@@ -177,10 +178,10 @@ class Articulation(nn.Module):
                 arti_verts[:,ele_k,...] =  torch.matmul(R[:,[k],...], verts[:,ele_k,...]) + t[:,[k],...]
 
         arti_verts = arti_verts.squeeze(-1)
-        t_old = t_old.squeeze(-1)
-        loss = t_old.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
+        t_net = t_net.squeeze(-1)
+        loss = t_net.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
 
-        return arti_verts, loss
+        return arti_verts, t_net
 
 
 class MultiArticulation(nn.Module):
@@ -213,7 +214,7 @@ class MultiArticulation(nn.Module):
         :param id: the index indicates which articulation is used
         :return: A tuple (verts, loss)
             - verts:[N x K x 3 ] All possible corrdinate of vertices for articulation prediction.
-            - loss:[N ] The corresponding loss for translation.
+            - loss:[N x P x 3] The corresponding net translation.
 
         """
 
