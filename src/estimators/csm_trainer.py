@@ -89,7 +89,7 @@ class CSMTrainer(ITrainer):
         trans = batch['trans'].to(self.device, dtype=torch.float)
         quat = batch['quat'].to(self.device, dtype=torch.float)
 
-        pred_out = self.model(img, mask, scale, trans, quat)
+        pred_out = self.model(img, mask, scale, trans, quat, epoch)
 
         loss = self._calculate_loss_for_predictions(mask, pred_out, epoch, epoch < self.config.pose_warmup_epochs)
 

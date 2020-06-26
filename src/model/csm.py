@@ -70,7 +70,7 @@ class CSM(torch.nn.Module):
                 self.arti = Articulation(device=template_mesh.device, **arti_mesh_info)
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
-                scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor):
+                scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor, epochs: int):
         """
         For the given img and mask
         - uses the unet to predict sphere coordinates
