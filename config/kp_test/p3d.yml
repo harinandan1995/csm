@@ -24,6 +24,10 @@ test:
   workers: 4
   out_dir: 'out'
   use_gt_cam: True
+  num_cam_poses: 8
+  use_sampled_cam: True
+  alpha: [0.05, 0.1, 0.2]
   checkpoint: ''
+  add_summaries: True
   log:
     image_summary_step: 1

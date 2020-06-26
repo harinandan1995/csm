@@ -3,7 +3,7 @@ dataset:
   img_size: 256
   img_height: 320
   img_width: 512
-  split: 'train'
+  split: 'val'
   transform: 'flip'
   padding_frac: 0.05
   jitter_frac: 0.05
@@ -19,11 +19,15 @@ dataset:
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir/p3d'
 
 test:
-  batch_size: 32
+  batch_size: 8
   shuffle: True
   workers: 8
   out_dir: '/mnt/raid/csmteam/out'
   use_gt_cam: True
-  checkpoint: ''
+  num_cam_poses: 8
+  use_sampled_cam: True
+  alpha: [0.05, 0.1, 0.2]
+  checkpoint: '/mnt/raid/csmteam/out/2020-06-23/200649/checkpoints/model_071810_195'
+  add_summaries: False
   log:
     image_summary_step: 1

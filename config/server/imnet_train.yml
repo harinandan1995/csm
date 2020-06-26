@@ -1,5 +1,5 @@
 dataset:
-  category: 'bird'
+  category: 'zebra'
   img_size: 256
   img_height: 320
   img_width: 512
@@ -13,26 +13,30 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/horse/map3.png'
-    data_dir: 'datasets/IMAGENET'
-    cache_dir: 'datasets/cachedir/'
+    data_dir: '/mnt/raid/csmteam/datasets/ImageNet'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir'
 
 train:
-  batch_size: 5
-  epochs: 100
+  batch_size: 16
+  epochs: 250
   shuffle: True
-  workers: 0
+  workers: 16
   checkpoint: ''
-  out_dir: './out'
+  out_dir: '/mnt/raid/csmteam/out'
   use_gt_cam: False
+  use_sampled_cam: False
+  num_cam_poses: 8
+  pose_warmup_epochs: 10
   log:
-    loss_step: 10
-    image_summary_step: 30
+    image_summary_step: 50
     image_epoch: 1
   loss:
     geometric: 1
     visibility: 10
-    mask: 2
+    mask: 5
+    diverse: 0.05
+    quat: 0.1
   optim:
-    lr: 0.00006
+    lr: 0.0001
     beta1: 0.9
     type: 'adam'

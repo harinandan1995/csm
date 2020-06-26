@@ -70,7 +70,7 @@ def draw_key_points(img, kps, colors, radius=5):
 
     for cv_img, kps in zip(imgs_np, kp_np):
         for i, kp in enumerate(kps):
-            if kp[2] == 255:
+            if kp[2] == 1:
                 rr, cc = draw.disk((kp[1], kp[0]), radius, shape=cv_img.shape)
                 cv_img[rr, cc] = colors[i]
 
