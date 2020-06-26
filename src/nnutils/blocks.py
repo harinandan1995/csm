@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torchvision
 
@@ -76,3 +77,20 @@ class ResNetConv(nn.Module):
             x = self.resnet.layer4(x)
 
         return x
+
+def get_encoder(num_in_chans=3, trainable=False):
+    """
+    Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
+    Pre-trained layers are frozen.
+    :param trainable: bool. whether to train the resnet layers  
+    :return: Feature extractor from resnet18
+    """
+
+    conv1 = nn.Conv2d(in_channels=num_in_chans, out_channels=3, kernel_size=1)
+    resnet = torch.hub.load(
+        'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
+    encoder = nn.Sequential(conv1, *([*resnet.children()][:-1]))
+    if not trainable:
+        for param in encoder.parameters():
+            param.requires_grad = True
+    return encoder
