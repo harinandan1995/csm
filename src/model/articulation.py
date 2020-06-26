@@ -2,9 +2,7 @@ from pytorch3d.structures import Meshes
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pytorch3d.transforms import (so3_exponential_map, euler_angles_to_matrix,
-                  matrix_to_euler_angles, matrix_to_quaternion,
-                  quaternion_multiply, quaternion_to_matrix)
+from pytorch3d.transforms import so3_exponential_map
 
 
 class TreeNode:
@@ -58,11 +56,11 @@ class ArticulationPredictor(nn.Module):
 
         # convert NXC tensor to a NXPX3 vector
         vec = vec.view(-1, self._num_parts, (self._num_rots + self._num_trans))
-        vec_rot = vec[... ,0:(self._num_rots+1)]
-        vec_tran = vec[... , self._num_rots:].unsqueeze(-1)
-        vec_rot = F.normalize(vec_rot, dim = 2)
-        angle = torch.atan2(vec_rot[... ,1], vec_rot[... ,0]).unsqueeze(-1).repeat(1,1,3)
-        self.axis.data = F.normalize(self.axis.unsqueeze(0), dim = -1).squeeze(0).data
+        vec_rot = vec[..., 0:(self._num_rots+1)]
+        vec_tran = vec[..., self._num_rots:].unsqueeze(-1)
+        vec_rot = F.normalize(vec_rot, dim=-1)
+        angle = torch.atan2(vec_rot[..., 1], vec_rot[..., 0]).unsqueeze(-1).repeat(1, 1, 3)
+        self.axis.data = F.normalize(self.axis, dim=-1).data
         axis = self.axis.unsqueeze(0).repeat(batch_size, 1, 1)
 
         axis = axis.view(-1,3)

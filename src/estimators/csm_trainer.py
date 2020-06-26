@@ -60,7 +60,7 @@ class CSMTrainer(ITrainer):
         self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
 
         # Running losses to calculate mean loss per epoch for all types of losses
-        self.running_loss = torch.tensor([0, 0, 0, 0, 0], dtype=torch.float32)
+        self.running_loss = torch.tensor([0, 0, 0, 0, 0, 0], dtype=torch.float32)
         if self.config.use_gt_cam:
             self.config.pose_warmup_epochs = 0
 
@@ -91,15 +91,16 @@ class CSMTrainer(ITrainer):
 
         pred_out = self.model(img, mask, scale, trans, quat)
 
-        loss = self._calculate_loss_for_predictions(mask, pred_out, epoch < self.config.pose_warmup_epochs)
+        loss = self._calculate_loss_for_predictions(mask, pred_out, epoch, epoch < self.config.pose_warmup_epochs)
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, pose_warmup: bool = False) -> torch.tensor:
+    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, epoch : int, pose_warmup: bool = False) -> torch.tensor:
         """Calculates the loss from the output
 
         :param mask: (B X 1 X H X W) foreground mask
         :param pred_out: A dictionary cotaining the output of the CSM model
+        :param epoch : The number of epoch during the training
         :return: The computed loss from the output for the batch
         """
 
@@ -131,6 +132,11 @@ class CSMTrainer(ITrainer):
                 loss[3] = self.config.loss.diverse * diverse_loss(pred_prob)
             if self.config.loss.quat > 0 and not pose_warmup:
                 loss[4] = self.config.loss.quat * quaternion_regularization_loss(pred_quat)
+
+        #TODO:add config: use_arti & loss.arti & arti_threshold
+        if self.config.use_arti and epoch > self.config.arti_epochs:
+            pred_arti_translation = pred_out["pred_arti_translation"]
+            loss[5] = self.config.loss.arti * articulation_loss(pred_arti_translation)
 
         self.running_loss = torch.add(self.running_loss, loss)
 

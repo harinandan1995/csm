@@ -138,7 +138,7 @@ def diverse_loss(probs):
 
 def articulation_loss(translation,  reduction='mean'):
     """
-    :param batch_loss: 
+    :param [B X K X 3] translation 
     :param reduction: 
     :return: L2-loss for the translation
     """

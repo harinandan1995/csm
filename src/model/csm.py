@@ -61,7 +61,7 @@ class CSM(torch.nn.Module):
 
         if self.use_arti:
             arti_mesh_info["template_mesh"] = template_mesh
-            self.arti_threshold = arti_mesh_info.pop("threshold")
+            self.arti_epochs = arti_mesh_info.pop("arti_epochs")
             if not self.use_gt_cam:
                 _encoders = [cpp.encoder for cpp in self.cam_preds ]
                 self.arti = MultiArticulation(num_hypotheses=num_cam_poses, encoder=_encoders,
@@ -97,7 +97,8 @@ class CSM(torch.nn.Module):
                 template for the camera poses
             - pred_depths: A (B X CP X 1 X H X W) tensor containing the rendered depths of the mesh
                 template for the camera poses
-            - arti_translation: A (B X K X 3) tensor containing the translation regarding the articulation 
+            - (optional) pred_poses: A (B x H x 8 ) amera pose hypotheses,
+            - (optional)arti_translation: A (B X K X 3) tensor containing the translation regarding the articulation 
         """
 
         sphere_points = self.unet(torch.cat((img, mask), 1))
@@ -110,7 +111,7 @@ class CSM(torch.nn.Module):
         else:
             rotation, translation, pred_poses, camera_id = self._get_camera_extrinsics(img, scale, trans, quat)
 
-        if self.use_arti:
+        if self.use_arti and epochs >= self.arti_threshold:
             if self.use_gt_cam:
                 arti_verts, arti_translation = self.arti(img)
             else:
@@ -137,7 +138,7 @@ class CSM(torch.nn.Module):
             out['pred_poses'] = pred_poses
 
         if self.use_arti:
-            out["arti_translation"] = arti_translation
+            out["pred_arti_translation"] = arti_translation
 
         return out
 
