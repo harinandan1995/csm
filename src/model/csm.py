@@ -120,8 +120,10 @@ class CSM(torch.nn.Module):
 
             if self.use_gt_cam:
                 arti_verts, arti_translation = self.arti(img)
+                arti_verts = arti_verts.unsqueeze(1)
+                arti_translation = arti_translation.unsqueeze(1)
             else:
-                arti_verts, arti_translation = self.arti(img, camera_id)
+                arti_verts, arti_translation = self.arti(img, self.use_sampled_cam, camera_id)
 
         
         # TODO: add mesh articulation here, Daniel

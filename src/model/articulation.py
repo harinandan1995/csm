@@ -215,28 +215,39 @@ class MultiArticulation(nn.Module):
         #    #self.arti = nn.ModuleList(
         #    self.arti =  [Articulation(encoder=encoder[i], **kwargs) for i in range(num_hypotheses)]#)
 
-    def forward(self, x, index_list):
+    def forward(self, x, use_sampled_cam = True, index_list = [] ):
         """Predict a certain number of articulation. 
-        ::param x: [N x C x H x W]  The input images, for which the articulation should be predicted.
+        ::param x: [N x F]  The input images, for which the articulation should be predicted.
             N - batch size
-            C - the number of channel
-            [H, W] - height and weight for images
+            F - the number of feature
+            H - umber of articulation pose which should be predicted.
             K - the number of mesh vertice
         :param index_list: [N] list of the index indicates which articulation is used
         :return: A tuple (verts, loss)
-            - pred_verts:[N x K x 3] The corrdinate of vertices for articulation prediction.for i-th camera
-            - pred_t:[N x P x 3] The corresponding loss for translation.for i-th camera
+            - pred_verts:[N x 1 x K x 3] or [N x H x K x 3] he corrdinate of vertices for articulation prediction.for i-th camera
+            - pred_t:[N x 1 x P x 3]  or [N x H x K x 3]The corresponding loss for translation.for i-th camera
 
         """
 
-        pred = [ self.arti[index](x[[num],...]) for num, index in enumerate(index_list)]
-        pred_verts, pred_t = zip(*pred)
-        pred_verts = list(pred_verts)
-        pred_t = list(pred_t)
-        pred_verts = torch.cat(pred_verts, dim = 0)
-        pred_t = torch.cat(pred_t, dim = 0)
+        if use_sampled_cam:
+            pred = [ self.arti[index](x[[num],...]) for num, index in enumerate(index_list)]
+            pred_verts, pred_t = zip(*pred)
+            pred_verts = list(pred_verts)
+            pred_t = list(pred_t)
+            pred_verts = torch.stack(pred_verts, dim = 0)
+            pred_t = torch.stack(pred_t, dim = 0)
 
-        return pred_verts, pred_t
+            return pred_verts, pred_t
+
+        else:
+            pred = [ar(x) for ar in self.arti]
+            pred_verts, pred_t = zip(*pred)
+            pred_verts = list(pred_verts)
+            pred_t = list(pred_t)
+            pred_verts = torch.stack(pred_verts, dim=1)
+            pred_t = torch.stack(pred_t, dim=1)
+
+            return pred_verts, pred_t
 
 
 def get_p_to_v(parts: list, num_parts: int):
