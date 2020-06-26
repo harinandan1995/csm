@@ -203,7 +203,7 @@ class MultiArticulation(nn.Module):
             self.arti = nn.ModuleList(
                 [Articulation(encoder[i], **kwargs) for i in range(num_hypotheses)])
 
-    def foward(self, x, id):
+    def foward(self, x, index):
         """Predict a certain number of articulation. 
         ::param x: [N x C x H x W]  The input images, for which the articulation should be predicted.
             N - batch size
