@@ -14,9 +14,21 @@ class TreeNode:
 
 
 #TODO: test axis prediction if angle prediction is done.
-class Predictor(nn.Module):
-    def __init__(self, num_parts, num_feats=512, num_rots=2, num_trans = 3, device='cuda', axis_move = False):
-        super(QuatPredictorSingleAxis, self).__init__()
+class ArticulationPredictor(nn.Module):
+    """
+    Articulation predictor.
+    It predicts angle (in axis-angle representation) and translation for articulation.
+    """
+    def __init__(self, num_parts, num_feats=512, num_rots = 2, num_trans = 3, device='cuda', axis_move = False):
+        """
+        :param num_parts: the number of part of object
+        :param num_feats: the number of feats extracted from images
+        :param num_rots: the number of parameters used for angle prediction
+        :param num_trans: the number of parameters used for translation prediction
+        :param device: 
+        :param axis_move: flag indicates whether predict translation.
+        """
+        super(ArticulationPredictor, self).__init__()
         self._num_parts = num_parts
         self._num_feats = num_feats
         self._num_rots = num_rots
@@ -33,6 +45,13 @@ class Predictor(nn.Module):
             self.axis.requires_grad = False
 
     def forward(self, x):
+        """
+        :param x: input features
+        :return: A tuple (R, t)
+            - R:
+            - t:
+            N = batch size, M = number of feature
+        """
         
         batch_size = len(x)
         vec = self.fc.forward(x)
@@ -40,17 +59,17 @@ class Predictor(nn.Module):
         # convert NXC tensor to a NXPX3 vector
         vec = vec.view(-1, self._num_parts, (self._num_rots + self._num_trans))
         vec_rot = vec[... ,0:(self._num_rots+1)]
-        vec_tran = vec[... , (self._num_rots):].unsqueeze(-1)
-        vec = F.normalize(vec, dim = 2)
-        angle = atan2(vec[... ,1], vec[... ,0]).unsqueeze(-1).repeat(1,1,3)
-        self.axis.data = F.normalize(self.axis.unsqueeze(0),dim = -1).squeeze(0).data
+        vec_tran = vec[... , self._num_rots:].unsqueeze(-1)
+        vec_rot = F.normalize(vec_rot, dim = 2)
+        angle = torch.atan2(vec_rot[... ,1], vec_rot[... ,0]).unsqueeze(-1).repeat(1,1,3)
+        self.axis.data = F.normalize(self.axis.unsqueeze(0), dim = -1).squeeze(0).data
         axis = self.axis.unsqueeze(0).repeat(batch_size, 1, 1)
 
         axis = axis.view(-1,3)
         angle = angle.view(-1,3)
 
         R = so3_exponential_map(angle * axis)
-        R = R.view(batch_size,num_parts,3,3)
+        R = R.view(batch_size,self._num_parts,3,3)
         return R, vec_tran
 
 class Articulation(nn.Module):
@@ -60,7 +79,7 @@ class Articulation(nn.Module):
     """
 
     def __init__(self, mesh : Meshes, parts: list, num_parts: int, rotation_center: dict, 
-            parent: dict, alpha: None, num_feats=512, num_rots=2, num_trans = 3, device='cuda'):
+            parent: dict, encoder: None, alpha: None, num_feats=512, num_rots=2, num_trans = 3, device='cuda'):
         """
         :param mesh: The base mesh for the certain category.
         :param parts: K element list. Each element in the list represent the part of each vertice in mesh (range:[0, num_parts - 1])
@@ -77,11 +96,17 @@ class Articulation(nn.Module):
 
         super(Articulation, self).__init__()
         self.device = device
+
+        if not encoder:
+            self._encoder = get_encoder(trainable=False)
+        else:
+            self._encoder = encoder
+
         self._num_feats = num_feats
         self._num_rots = num_rots
         self._num_parts = num_parts
         self._num_trans = num_trans
-        self._predictor = Predictor(num_parts, num_feats, num_rots, num_trans, device)
+        self._predictor = ArticulationPredictor(num_parts, num_feats, num_rots, num_trans, device)
 
 
         self._mesh = mesh       
@@ -102,10 +127,10 @@ class Articulation(nn.Module):
         if alpha:
             self._alpha = torch.FloatTensor(alpha)
 
-    def forward(self, feats):
+    def forward(self, x):
         """
         Predicts the articulation to an input features.
-        :param feats: [N x M] The input features, for which the articulation should be predicted.
+        :param feats: [N x C x H x W] The input images, for which the articulation should be predicted.
             N - batch size
             M - number of feature 
             K - number of mesh vertice
@@ -114,19 +139,20 @@ class Articulation(nn.Module):
             - loss:[N] The corresponding loss for translation.
         """
 
-        feats = feats.view(-1, self._num_feats)
+        x = self._encoder(x)
+        x = x.view(-1, self._num_feats)
         batch_size = len(x)
 
         R, t = self._predictor(x)
 
         #TODO: Add translation for future
         if True:
-            t = tensor.zeros([batch_size, self._num_parts, 3, 1]).to(device)       
+            t = torch.zeros([batch_size, self._num_parts, 3, 1]).to(self.device)
         
         t_old = t
 
         rotation_center = self._r_c.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,1)
-        for k in _order_list:
+        for k in self._order_list:
             t[:,k,...] += -torch.bmm(R[:,k,...],rotation_center[:,k,...]) + rotation_center[:,k,...]
             if self._parent[k] != -1:
                 R[:,k,...] = torch.bmm(R[:,self._parent[k],...],R[:,k,...])
@@ -173,7 +199,7 @@ class MultiArticulation(nn.Module):
         self.arti = nn.ModuleList(
             [Articulation(**kwargs) for _ in range(num_hypotheses)])
         
-    def foward(self, feats):
+    def foward(self, x):
         """Predict a certain number of articulation. 
         ::param feats: [N x M] The input features, for which the articulation should be predicted.
             N - batch size
@@ -249,8 +275,23 @@ def get_r_c(rotation_center, num_parts):
         assert k in rotation_center.keys()
         r_c_list += [rotation_center[k]]
 
-    return torch.Tensor(r_c_list)
+    return torch.FloatTensor(r_c_list)
 
+def get_encoder(trainable=False):
+    """
+    Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
+    Pre-trained layers are frozen.
+    :param trainable: bool. whether to train the resnet layers  
+    :return: Feature extractor from resnet18
+    """
+
+    resnet = torch.hub.load(
+        'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
+    encoder = nn.Sequential(*([*resnet.children()][:-1]))
+    if not trainable:
+        for param in encoder.parameters():
+            param.requires_grad = True
+    return encoder
 
 
 #def axang2quat(angle, axis):
