@@ -89,7 +89,7 @@ def get_encoder(trainable=False):
 
     resnet = torch.hub.load(
         'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
-    encoder = nn.Sequential(conv1, *([*resnet.children()][:-1]))
+    encoder = nn.Sequential(*([*resnet.children()][:-1]))
     if not trainable:
         for param in encoder.parameters():
             param.requires_grad = True
