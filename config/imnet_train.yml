@@ -13,6 +13,7 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/horse/map3.png'
+    template: 'datasets/cachedir/models/zebra/zebra.obj'
     data_dir: 'datasets/ImageNet'
     cache_dir: 'datasets/cachedir'
 
@@ -25,8 +26,10 @@ train:
   out_dir: './out'
   use_gt_cam: True
   use_sampled_cam: False
+  use_arti: True
   num_cam_poses: 8
   pose_warmup_epochs: 10
+  arti_epochs: 50
   log:
     image_summary_step: 30
     image_epoch: 1
@@ -36,6 +39,7 @@ train:
     mask: 2
     diverse: 0.05
     quat: 0.1
+    arti: 0.0
   optim:
     lr: 0.0001
     beta1: 0.9
