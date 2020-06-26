@@ -48,9 +48,9 @@ class ArticulationPredictor(nn.Module):
         """
         :param x: input features
         :return: A tuple (R, t)
-            - R:
-            - t:
-            N = batch size, M = number of feature
+            - R: [N x K x 3 x 3] Rotation matrix for part transformation.
+            - t: [N x K x 3 x 1] Translation for part transformation.
+            N = batch size, K = number of part
         """
         
         batch_size = len(x)
@@ -108,7 +108,6 @@ class Articulation(nn.Module):
         self._num_trans = num_trans
         self._predictor = ArticulationPredictor(num_parts, num_feats, num_rots, num_trans, device)
 
-
         self._mesh = mesh       
         self._v_to_p = parts # list: vertice -> part
         # dict: part -> [vertices],  # dict: part -> num   
@@ -130,10 +129,11 @@ class Articulation(nn.Module):
     def forward(self, x):
         """
         Predicts the articulation to an input features.
-        :param feats: [N x C x H x W] The input images, for which the articulation should be predicted.
+        :param feats: [N x C x H x W]  The input images, for which the articulation should be predicted.
             N - batch size
-            M - number of feature 
-            K - number of mesh vertice
+            C - the number of channel
+            [H, W] - height and weight for images
+            K - the number of mesh vertice
         :return: A tuple (verts, loss)
             - verts:[N x K x 3] The corrdinate of vertices for articulation prediction.
             - loss:[N] The corresponding loss for translation.
@@ -201,10 +201,11 @@ class MultiArticulation(nn.Module):
         
     def foward(self, x):
         """Predict a certain number of articulation. 
-        ::param feats: [N x M] The input features, for which the articulation should be predicted.
+        ::param feats: [N x C x H x W]  The input images, for which the articulation should be predicted.
             N - batch size
-            M - number of feature 
-            K - number of mesh vertice
+            C - the number of channel
+            [H, W] - height and weight for images
+            K - the number of mesh vertice
         :return: A tuple (verts, loss)
             - verts:[N x K x 3 x 8] All possible corrdinate of vertices for articulation prediction.
             - loss:[N x 8] The corresponding loss for translation.
