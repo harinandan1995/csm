@@ -113,9 +113,9 @@ class CSM(torch.nn.Module):
 
         if self.use_arti and epochs >= self.arti_threshold:
             if self.use_gt_cam:
-                arti_verts, arti_translation = self.arti(img)
+                arti_verts, arti_translation = self.arti.forward(img)
             else:
-                arti_verts, arti_translation = self.arti(img, camera_id)
+                arti_verts, arti_translation = self.arti.forward(img, camera_id)
 
 
         # Project the sphere points onto the template and project them back to image plane
