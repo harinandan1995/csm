@@ -25,11 +25,11 @@ train:
   checkpoint: ''
   out_dir: '/mnt/raid/csmteam/out'
   use_gt_cam: False
-  use_sampled_cam: False
+  use_sampled_cam: True
   use_arti: True
   num_cam_poses: 8
-  pose_warmup_epochs: 10
-  arti_epochs: 50
+  pose_warmup_epochs: 0
+  arti_epochs: 0
   log:
     image_summary_step: 50
     image_epoch: 1

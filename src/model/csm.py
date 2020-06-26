@@ -7,6 +7,7 @@ from src.model.unet import UNet
 from src.model.uv_to_3d import UVto3D
 from src.nnutils.geometry import get_scaled_orthographic_projection, convert_3d_to_uv_coordinates
 from src.nnutils.rendering import MaskRenderer, DepthRenderer, MaskAndDepthRenderer
+from src.nnutils.blocks import get_encoder
 
 
 class CSM(torch.nn.Module):
@@ -28,7 +29,7 @@ class CSM(torch.nn.Module):
 
     def __init__(self, template_mesh: Meshes, mean_shape: dict,
                  use_gt_cam: bool = False, num_cam_poses: int = 8,
-                 use_sampled_cam=False, use_arti = False, arti_mesh_info: dict = {}):
+                 use_sampled_cam=False, num_in_chans=3, use_arti = False, arti_epochs = 0, arti_mesh_info: dict = {}):
         """
         :param template_mesh: A pytorch3d.structures.Meshes object which will used for
         rendering depth and mask for a given camera pose
@@ -56,15 +57,17 @@ class CSM(torch.nn.Module):
         self.use_sampled_cam = use_sampled_cam
         self.use_arti = use_arti
 
+        if not self.use_gt_cam or use_arti:
+            self.encoder = get_encoder(num_in_chans, trainable=False)
+
         if not self.use_gt_cam:
             self.multi_cam_pred = MultiCameraPredictor(num_hypotheses=num_cam_poses,device=template_mesh.device)
 
         if self.use_arti:
             arti_mesh_info["template_mesh"] = template_mesh
-            self.arti_epochs = arti_mesh_info.pop("arti_epochs")
+            self.arti_epochs = arti_epochs
             if not self.use_gt_cam:
-                _encoders = [cpp.encoder for cpp in self.cam_preds ]
-                self.arti = MultiArticulation(num_hypotheses=num_cam_poses, encoder=_encoders,
+                self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
                                               device=template_mesh.device, **arti_mesh_info)
             if self.use_gt_cam:
                 self.arti = Articulation(device=template_mesh.device, **arti_mesh_info)
@@ -105,17 +108,19 @@ class CSM(torch.nn.Module):
         sphere_points = torch.tanh(sphere_points)
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
-        #modify the output of _get_camera_extrinsics
+        img = self.encoder(img)
+        img = img.view(len(img),-1)
+
         if self.use_gt_cam:
             rotation, translation, pred_poses = self._get_camera_extrinsics(img, scale, trans, quat)
         else:
             rotation, translation, pred_poses, camera_id = self._get_camera_extrinsics(img, scale, trans, quat)
 
-        if self.use_arti and epochs >= self.arti_threshold:
+        if self.use_arti and epochs >= self.arti_epochs:
             if self.use_gt_cam:
-                arti_verts, arti_translation = self.arti.forward(img)
+                arti_verts, arti_translation = self.arti(img)
             else:
-                arti_verts, arti_translation = self.arti.forward(img, camera_id)
+                arti_verts, arti_translation = self.arti(img, camera_id)
 
 
         # Project the sphere points onto the template and project them back to image plane
@@ -137,7 +142,7 @@ class CSM(torch.nn.Module):
         if not self.use_gt_cam:
             out['pred_poses'] = pred_poses
 
-        if self.use_arti:
+        if self.use_arti and epochs >= self.arti_epochs:
             out["pred_arti_translation"] = arti_translation
 
         return out

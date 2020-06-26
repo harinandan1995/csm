@@ -91,11 +91,11 @@ class CSMTrainer(ITrainer):
 
         pred_out = self.model(img, mask, scale, trans, quat, epoch)
 
-        loss = self._calculate_loss_for_predictions(mask, pred_out, epoch, epoch < self.config.pose_warmup_epochs)
+        loss = self._calculate_loss_for_predictions(mask, pred_out, epoch < self.config.pose_warmup_epochs, epoch < self.config.arti_epochs)
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, epoch : int, pose_warmup: bool = False) -> torch.tensor:
+    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, epoch : int, pose_warmup: bool = False, not_arti: bool = True) -> torch.tensor:
         """Calculates the loss from the output
 
         :param mask: (B X 1 X H X W) foreground mask
@@ -134,7 +134,7 @@ class CSMTrainer(ITrainer):
                 loss[4] = self.config.loss.quat * quaternion_regularization_loss(pred_quat)
 
         #TODO:add config: use_arti & loss.arti & arti_threshold
-        if self.config.use_arti and epoch >= self.config.arti_epochs:
+        if self.config.use_arti and not not_arti:
             pred_arti_translation = pred_out["pred_arti_translation"]
             loss[5] = self.config.loss.arti * articulation_loss(pred_arti_translation)
 
@@ -196,7 +196,8 @@ class CSMTrainer(ITrainer):
         """
 
         model = CSM(self.dataset.template_mesh, self.dataset.mean_shape, self.config.use_gt_cam, 
-                    self.config.num_cam_poses, self.config.use_sampled_cam).to(self.device)
+                    self.config.num_cam_poses, self.config.use_sampled_cam, self.config.use_arti,
+                    self.config.arti_epochs, self.dataset.arti_info_mesh).to(self.device)
 
         return model
 
