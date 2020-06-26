@@ -66,11 +66,8 @@ class ImnetDataset(IDataset):
     def load_data(self):
 
         cache_dir = osp.join(self.config.dir.cache_dir, 'imnet')
-<<<<<<< HEAD
         model_dir = osp.join(self.config.dir.cache_dir, 'models', '%s' % self.category)
-=======
-        model_dir = osp.join(cache_dir, 'models', '%s' % (self.category))
->>>>>>> 3f145d564a3b290a688ca8cd1e07ab99e4f2ccef
+
 
         anno_path = osp.join(cache_dir, 'data', '%s_%s.mat' % (self.sysnet_id, self.config.split))
         anno_sfm_path = osp.join(cache_dir, 'sfm', '%s_%s.mat' % (self.sysnet_id, self.config.split))
