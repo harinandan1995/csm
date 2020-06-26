@@ -36,6 +36,9 @@ class CameraPredictor(nn.Module):
         else:
             self.encoder = encoder
 
+
+        # TODO: combine first conv layer with encoder into one module
+        
         self._num_feats = num_feats
 
         self.fc = nn.Sequential(
@@ -192,7 +195,7 @@ def get_encoder(trainable=False):
     resnet = torch.hub.load(
         'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
     encoder = nn.Sequential(*([*resnet.children()][:-1]))
-    if not trainable:
+    if trainable:
         for param in encoder.parameters():
             param.requires_grad = True
     return encoder

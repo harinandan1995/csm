@@ -91,6 +91,10 @@ class CSM(torch.nn.Module):
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
         rotation, translation, pred_poses = self._get_camera_extrinsics(img, scale, trans, quat)
+        # TODO: add articulation prediction here, Letian
+
+        # TODO: add mesh articulation here, Daniel
+        # NOTE: we need N articulated meshes
 
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
