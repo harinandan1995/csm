@@ -35,7 +35,6 @@ class MaskAndDepthRenderer(nn.Module):
         self.meshes = meshes
         device = meshes.device
 
-        # TODO: check how to implement weak perspective (scaled orthographic).
         cameras = OpenGLOrthographicCameras(device=device)
 
         self._rasterizer = MeshRasterizer(
