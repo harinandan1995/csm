@@ -144,7 +144,6 @@ class DepthRenderer(nn.Module):
         super(DepthRenderer, self).__init__()
         self._meshes = meshes
 
-        # TODO: check how to implement weak perspective (scaled orthographic).
         cameras = OpenGLOrthographicCameras(device=device)
 
         raster_settings = RasterizationSettings(image_size=image_size)
@@ -174,7 +173,6 @@ class DepthRenderer(nn.Module):
         meshes_batch = self._meshes.extend(batch_size)
         fragments = self._rasterizer(meshes_batch, R=R, T=T)
 
-        # TODO: do i need to forward the image?
         image = self._shader(fragments, meshes_batch)
         depth_map = fragments.zbuf
 
