@@ -1,7 +1,7 @@
-from pytorch3d.structures import Meshes
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pytorch3d.structures import Meshes
 from pytorch3d.transforms import so3_exponential_map
 
 
@@ -11,13 +11,14 @@ class TreeNode:
         self.children = []
 
 
-#TODO: test axis prediction if angle prediction is done.
+# TODO: test axis prediction if angle prediction is done.
 class ArticulationPredictor(nn.Module):
     """
     Articulation predictor.
     It predicts angle (in axis-angle representation) and translation for articulation.
     """
-    def __init__(self, num_parts, num_feats=512, num_rots = 2, num_trans = 3, device='cuda', axis_move = False):
+
+    def __init__(self, num_parts, num_feats=512, num_rots=2, num_trans=3, device='cuda', axis_move=False):
         """
         :param num_parts: the number of part of object
         :param num_feats: the number of feats extracted from images
@@ -51,7 +52,7 @@ class ArticulationPredictor(nn.Module):
             - t: [N x K x 3 x 1] Translation for part transformation.
             N = batch size, K = number of part
         """
-        
+
         batch_size = len(x)
         vec = self.fc.forward(x)
 
@@ -60,7 +61,8 @@ class ArticulationPredictor(nn.Module):
         vec_rot = vec[..., 0:(self._num_rots+1)]
         vec_tran = vec[..., self._num_rots:].unsqueeze(-1)
         vec_rot = F.normalize(vec_rot, dim=-1)
-        angle = torch.atan2(vec_rot[..., 1], vec_rot[..., 0]).unsqueeze(-1).repeat(1, 1, 3)
+        angle = torch.atan2(
+            vec_rot[..., 1], vec_rot[..., 0]).unsqueeze(-1).repeat(1, 1, 3)
         self.axis.data = F.normalize(self.axis, dim=-1).data
         axis = self.axis.unsqueeze(0).repeat(batch_size, 1, 1)
 
@@ -68,7 +70,7 @@ class ArticulationPredictor(nn.Module):
         angle = angle.view(-1, 3)
 
         R = so3_exponential_map(angle * axis)
-        R = R.view(batch_size,self._num_parts,3,3)
+        R = R.view(batch_size, self._num_parts, 3, 3)
         return R, vec_tran
 
 
@@ -79,7 +81,7 @@ class Articulation(nn.Module):
     """
 
     def __init__(self,  template_mesh: Meshes, parts: list, num_parts: int, rotation_center: dict,
-            parent: dict, alpha=None, num_feats=512, num_rots=2, num_trans = 3,  encoder=None, device='cuda'):
+                 parent: dict, alpha=None, num_feats=512, num_rots=2, num_trans=3,  encoder=None, device='cuda'):
         """
         :param mesh: The base mesh for the certain category.
         :param parts: K element list. Each element in the list represent the part of each vertice in mesh (range:[0, num_parts - 1])
@@ -97,21 +99,17 @@ class Articulation(nn.Module):
         super(Articulation, self).__init__()
         self.device = device
 
-        #if not encoder:
-        #    self._encoder = get_encoder(trainable=False)
-        #else:
-        #    self._encoder = encoder
-
         self._num_feats = num_feats
         self._num_rots = num_rots
         self._num_parts = num_parts
         self._num_trans = num_trans
-        self._predictor = ArticulationPredictor(num_parts, num_feats, num_rots, num_trans, device)
+        self._predictor = ArticulationPredictor(
+            num_parts, num_feats, num_rots, num_trans, device)
 
         self._mesh = template_mesh
-        self._v_to_p = parts # list: vertice -> part
-        # dict: part -> [vertices],  # dict: part -> num   
-        self._p_to_v, self._p_n= get_p_to_v(parts, num_parts)    
+        self._v_to_p = parts  # list: vertice -> part
+        # dict: part -> [vertices],  # dict: part -> num
+        self._p_to_v, self._p_n = get_p_to_v(parts, num_parts)
         self._r_c = get_r_c(rotation_center, num_parts).to(device)
         self._r_c.requires_grad = False
 
@@ -147,43 +145,54 @@ class Articulation(nn.Module):
 
         # TODO: Add translation for future
         if True:
-            t = torch.zeros([batch_size, self._num_parts, 3, 1]).to(self.device)
-        
+            t = torch.zeros(
+                [batch_size, self._num_parts, 3, 1]).to(self.device)
+
         t_net = t
 
-        rotation_center = self._r_c.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,1)
+        rotation_center = self._r_c.unsqueeze(
+            0).unsqueeze(-1).repeat(batch_size, 1, 1, 1)
 
-        t_part = torch.zeros_like(t, requires_grad = True).to(self.device)
+        t_part = torch.zeros_like(t, requires_grad=True).to(self.device)
         t_global = torch.zeros_like(t, requires_grad=True).to(self.device)
         R_global = torch.zeros_like(R, requires_grad=True).to(self.device)
         for k in self._order_list:
-            t_part[:,k,...] = - torch.bmm(R[:,k,...],rotation_center[:,k,...]) + rotation_center[:,k,...] + t[:,k,...]
+            t_part[:, k, ...] = - torch.bmm(R[:, k, ...], rotation_center[:, k, ...]
+                                            ) + rotation_center[:, k, ...] + t[:, k, ...]
             if self._parent[k] != -1:
 
-                R_global[:,k,...] = torch.bmm(R[:,self._parent[k],...],R[:,k,...])
-                t_global[:,k,...] = torch.bmm(R_global[:,self._parent[k],...],t_part[:,k,...]) + t_global[:,self._parent[k],...]
+                R_global[:, k, ...] = torch.bmm(
+                    R[:, self._parent[k], ...], R[:, k, ...])
+                t_global[:, k, ...] = torch.bmm(
+                    R_global[:, self._parent[k], ...], t_part[:, k, ...]) + t_global[:, self._parent[k], ...]
             else:
-                t_global[:, k, ...] = t_part[:,k,...]
-                R_global[:, k, ...] = R[:,k,...]
+                t_global[:, k, ...] = t_part[:, k, ...]
+                R_global[:, k, ...] = R[:, k, ...]
 
         verts = self._mesh.verts_list()[0]
-        verts = verts.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,1)
-        arti_verts = torch.zeros_like(verts, requires_grad = True).to(self.device)
+        verts = verts.unsqueeze(0).unsqueeze(-1).repeat(batch_size, 1, 1, 1)
+        arti_verts = torch.zeros_like(
+            verts, requires_grad=True).to(self.device)
 
         if self._alpha is not None:
-            alpha = self._alpha.unsqueeze(0).unsqueeze(-1).repeat(batch_size,1,1,3) #[N x K x P x 3]
-            alpha = alpha.transpose(2,3)                                            #[N x K x 3 x P]
-            non_soften_verts = torch.zeros_like(verts, requires_grad = True).to(self.device)
-            non_soften_verts = non_soften_verts.repeat(1,1,1,self._num_parts) #[N x K x 3 x P]
+            alpha = self._alpha.unsqueeze(
+                0).unsqueeze(-1).repeat(batch_size, 1, 1, 3)  # [N x K x P x 3]
+            alpha = alpha.transpose(2, 3)  # [N x K x 3 x P]
+            non_soften_verts = torch.zeros_like(
+                verts, requires_grad=True).to(self.device)
+            non_soften_verts = non_soften_verts.repeat(
+                1, 1, 1, self._num_parts)  # [N x K x 3 x P]
             for k in self._order_list:
-                non_soften_verts[..., k] =  (torch.matmul(R_global[:,[k],...], verts) + t_global[:,[k],...]).squeeze(-1)
+                non_soften_verts[..., k] = (torch.matmul(
+                    R_global[:, [k], ...], verts) + t_global[:, [k], ...]).squeeze(-1)
 
             arti_verts = (alpha * non_soften_verts).sum(-1)
 
         else:
             for k in self._order_list:
                 ele_k = self._p_to_v[k]
-                arti_verts[:,ele_k,...] =  torch.matmul(R[:,[k],...], verts[:,ele_k,...]) + t[:,[k],...]
+                arti_verts[:, ele_k, ...] = torch.matmul(
+                    R[:, [k], ...], verts[:, ele_k, ...]) + t[:, [k], ...]
 
         arti_verts = arti_verts.squeeze(-1)
         t_net = t_net.squeeze(-1)
@@ -192,30 +201,28 @@ class Articulation(nn.Module):
         return arti_verts, t_net
 
 
-
 class MultiArticulation(nn.Module):
     """Module for predicting a set of articulation pose."""
 
     def __init__(self, num_hypotheses=8, **kwargs):
         """
         :param num_hypotheses: number of articulation pose which should be predicted.
-        :param encoder: a list of encoder used in prediction
         :param kwargs: arguments which are passed through to the single articulation  predictors.
         """
         super(MultiArticulation, self).__init__()
         self.num_hypotheses = num_hypotheses
 
         self.arti = nn.ModuleList(
-               [Articulation(**kwargs) for _ in range(num_hypotheses)])
-        #if encoder is None:
+            [Articulation(**kwargs) for _ in range(num_hypotheses)])
+        # if encoder is None:
         #    self.arti = nn.ModuleList(
         #        [Articulation(**kwargs) for _ in range(num_hypotheses)])
-        #else:
+        # else:
         #    assert len(encoder) == num_hypotheses
         #    #self.arti = nn.ModuleList(
         #    self.arti =  [Articulation(encoder=encoder[i], **kwargs) for i in range(num_hypotheses)]#)
 
-    def forward(self, x, use_sampled_cam = True, index_list = [] ):
+    def forward(self, x, use_sampled_cam=True, index_list=[]):
         """Predict a certain number of articulation. 
         ::param x: [N x F]  The input images, for which the articulation should be predicted.
             N - batch size
@@ -224,18 +231,19 @@ class MultiArticulation(nn.Module):
             K - the number of mesh vertice
         :param index_list: [N] list of the index indicates which articulation is used
         :return: A tuple (verts, loss)
-            - pred_verts:[N x 1 x K x 3] or [N x H x K x 3] he corrdinate of vertices for articulation prediction.for i-th camera
+            - pred_verts:[N x 1 x K x 3] or 9[N x H x K x 3] he corrdinate of vertices for articulation prediction.for i-th camera
             - pred_t:[N x 1 x P x 3]  or [N x H x K x 3]The corresponding loss for translation.for i-th camera
 
         """
 
         if use_sampled_cam:
-            pred = [ self.arti[index](x[[num],...]) for num, index in enumerate(index_list)]
+            pred = [self.arti[index](x[[num], ...])
+                    for num, index in enumerate(index_list)]
             pred_verts, pred_t = zip(*pred)
             pred_verts = list(pred_verts)
             pred_t = list(pred_t)
-            pred_verts = torch.stack(pred_verts, dim = 0)
-            pred_t = torch.stack(pred_t, dim = 0)
+            pred_verts = torch.stack(pred_verts, dim=0)
+            pred_t = torch.stack(pred_t, dim=0)
 
             return pred_verts, pred_t
 
@@ -308,24 +316,7 @@ def get_r_c(rotation_center, num_parts):
     return torch.FloatTensor(r_c_list)
 
 
-def get_encoder(trainable=False):
-    """
-    Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
-    Pre-trained layers are frozen.
-    :param trainable: bool. whether to train the resnet layers  
-    :return: Feature extractor from resnet18
-    """
-
-    resnet = torch.hub.load(
-        'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
-    encoder = nn.Sequential(
-                            *([*resnet.children()][:-1]))
-    if not trainable:
-        for param in encoder.parameters():
-            param.requires_grad = True
-    return encoder
-
-#def axang2quat(angle, axis):
+# def axang2quat(angle, axis):
 
 #    cangle = torch.cos(angle/2)
 #    sangle = torch.sin(angle/2)
