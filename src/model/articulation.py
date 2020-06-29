@@ -158,14 +158,14 @@ class Articulation(nn.Module):
         R_global = []
         for k in self._order_list:
             t_part += [- torch.bmm(R[:, k, ...], rotation_center[:, k, ...]) + rotation_center[:, k, ...] + t[:, k, ...]]
-            if self._parent[k] != -1:
 
+            if self._parent[k] != -1:
                 R_global += [torch.bmm(R[:,self._parent[k],...],R[:,k,...])]
-                t_global += [torch.bmm(R_global[:,self._parent[k],...],t_part[self._order_list_id[k]]) + t_part[self._order_list_id[self._parent[k]]]]
+                t_global += [torch.bmm(R_global[self._order_list_id[self._parent[k]]],t_part[self._order_list_id[k]]) + t_global[self._order_list_id[self._parent[k]]]]
             else:
                 t_global += [t_part[self._order_list_id[k]]]
                 R_global += [R[:, k, ...]]
-        
+
         R_global = torch.stack(R_global, dim=1)
         t_global = torch.stack(t_global, dim=1)
         R_global = R_global[:,self._order_list_id, ...]
@@ -173,32 +173,29 @@ class Articulation(nn.Module):
 
 
         verts = self._mesh.verts_list()[0].clone()
-        verts = verts.unsqueeze(0).unsqueeze(-1).repeat(batch_size, 1, 1, 1)
+        verts = verts.unsqueeze(0).unsqueeze(-1).repeat(batch_size, 1, 1, 1) #[N x K x 3 x 1]
 
+        if self._alpha is None:
 
-        if self._alpha is not None:
-            alpha = self._alpha.unsqueeze(
-                0).unsqueeze(-1).repeat(batch_size, 1, 1, 3)  # [N x K x P x 3]
-            alpha = alpha.transpose(2, 3)  # [N x K x 3 x P]
-            #non_soften_verts = torch.zeros_like(
-            #    verts, requires_grad=True).to(self.device)
-            #non_soften_verts = non_soften_verts.repeat(
-            #    1, 1, 1, self._num_parts)  # [N x K x 3 x P]
-        else:
-            alpha = torch.zeros([len(verts), self._num_parts], requires_grad = False)
+            alpha = torch.zeros([len(verts), self._num_parts], requires_grad = False).to(self.device)
             for k in self._order_list:
                 ele_k = self._p_to_v[k]
                 alpha[ele_k,k] = 1
+        else:
+
+            alpha = self._alpha
+
+        alpha = alpha.unsqueeze(
+            0).unsqueeze(-1).repeat(batch_size, 1, 1, 3)  # [N x K x P x 3]
 
         non_soften_verts = []
         for k in self._order_list:
             non_soften_verts += [(torch.matmul(
                 R_global[:, [k], ...], verts) + t_global[:, [k], ...]).squeeze(-1)]
+        non_soften_verts = torch.stack(non_soften_verts, dim=-2)
 
-        non_soften_verts = torch.stack(non_soften_verts, dim=-1)
-        non_soften_verts = non_soften_verts[..., self._order_list_id]
-
-        arti_verts = (alpha * non_soften_verts).sum(-1)
+        non_soften_verts = non_soften_verts[..., self._order_list_id, :]
+        arti_verts = (alpha * non_soften_verts).sum(-2)
 
         arti_verts = arti_verts.squeeze(-1)
         t_net = t_net.squeeze(-1)
