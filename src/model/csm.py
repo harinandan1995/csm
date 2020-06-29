@@ -29,7 +29,7 @@ class CSM(torch.nn.Module):
 
     def __init__(self, template_mesh: Meshes, mean_shape: dict,
                  use_gt_cam: bool = False, num_cam_poses: int = 8,
-                 use_sampled_cam=False, use_arti = False, arti_epochs = 0, arti_mesh_info: dict = {}, num_in_chans :int = 3):
+                 use_sampled_cam=False, use_arti=False, arti_epochs=0, arti_mesh_info: dict = {}, num_in_chans: int = 3):
         """
         :param template_mesh: A pytorch3d.structures.Meshes object which will used for
         rendering depth and mask for a given camera pose
@@ -42,8 +42,8 @@ class CSM(torch.nn.Module):
         :param use_gt_cam: True or False. True if you want to use the ground truth camera pose. False if you want to
             use the camera predictor to predict the camera poses
         :param num_cam_poses: Number of camera hypothesis to be used. Should be used in with use_gt_cam=False
-        :use_sampled_cam: True of False. True if you want the output from the camera pose sampled according 
-            to the probabilities. False if you want output for all the predicted camera poses. 
+        :use_sampled_cam: True of False. True if you want the output from the camera pose sampled according
+            to the probabilities. False if you want output for all the predicted camera poses.
             Should be used in with use_gt_cam=False
         :param device: Device to store the tensor. Default: cuda
         """
@@ -51,18 +51,21 @@ class CSM(torch.nn.Module):
 
         self.unet = UNet(4, 3)
         self.uv_to_3d = UVto3D(mean_shape)
-        self.renderer = MaskAndDepthRenderer(meshes=template_mesh)
+        self.template_mesh = template_mesh
+        self.renderer = MaskAndDepthRenderer(device=self.template_mesh.device)
+        # self.renderer = MaskAndDepthRenderer(meshes=template_mesh)
 
         self.use_gt_cam = use_gt_cam
         self.use_sampled_cam = use_sampled_cam
         self.use_arti = use_arti
 
         if not self.use_gt_cam or self.use_arti:
-            self.conv1 = torch.nn.Conv2d(in_channels=num_in_chans, out_channels=3, kernel_size=1)
-            self.encoder = get_encoder(trainable=False)
+            self.encoder = get_encoder(
+                trainable=False, num_in_chans=num_in_chans)
 
         if not self.use_gt_cam:
-            self.multi_cam_pred = MultiCameraPredictor(num_hypotheses=num_cam_poses,device=template_mesh.device)
+            self.multi_cam_pred = MultiCameraPredictor(
+                num_hypotheses=num_cam_poses, device=template_mesh.device)
 
         if self.use_arti:
             arti_mesh_info["template_mesh"] = template_mesh
@@ -71,7 +74,8 @@ class CSM(torch.nn.Module):
                 self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
                                               device=template_mesh.device, **arti_mesh_info)
             if self.use_gt_cam:
-                self.arti = Articulation(device=template_mesh.device, **arti_mesh_info)
+                self.arti = Articulation(
+                    device=template_mesh.device, **arti_mesh_info)
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
                 scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor, epochs: int):
@@ -85,7 +89,7 @@ class CSM(torch.nn.Module):
             project them back to image plane
         - use the renderer to render pred_depth and mask for the predicted/gt camera poses
 
-        :param img: A (B X 3 X H X W) tensor of input image
+        :param img: A (B X 3 X H X W) tensor of encoded input image
         :param mask: A (B X 1 X H X W) tensor of input image
         :param scale: A (B X 1) tensor of input image
         :param trans: A (B X 2) tensor of translations (tx, ty)
@@ -102,7 +106,7 @@ class CSM(torch.nn.Module):
             - pred_depths: A (B X CP X 1 X H X W) tensor containing the rendered depths of the mesh
                 template for the camera poses
             - (optional) pred_poses: A (B x H x 8 ) amera pose hypotheses,
-            - (optional)arti_translation: A (B X K X 3) tensor containing the translation regarding the articulation 
+            - (optional) arti_translation: A (B X K X 3) tensor containing the translation regarding the articulation
         """
 
         sphere_points = self.unet(torch.cat((img, mask), 1))
@@ -110,33 +114,41 @@ class CSM(torch.nn.Module):
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
         if not self.use_gt_cam or self.use_arti:
-            img = self.conv1(img)
-            img = self.encoder(img)
-            img = img.view(len(img),-1)
+            img_feats = self.encoder(img)
+            img_feats = img_feats.view(len(img_feats), -1)
 
         if self.use_gt_cam:
-            rotation, translation, pred_poses = self._get_camera_extrinsics(img, scale, trans, quat)
+            rotation, translation, pred_poses, _ = self._get_camera_extrinsics(
+                img_feats, scale, trans, quat)
         else:
-            rotation, translation, pred_poses, camera_id = self._get_camera_extrinsics(img, scale, trans, quat)
+            rotation, translation, pred_poses, cam_idx = self._get_camera_extrinsics(
+                img_feats, scale, trans, quat)
 
         if self.use_arti and epochs >= self.arti_epochs:
 
             if self.use_gt_cam:
-                arti_verts, arti_translation = self.arti(img)
+                arti_verts, arti_translation = self.arti(img_feats)
                 arti_verts = arti_verts.unsqueeze(1)
                 arti_translation = arti_translation.unsqueeze(1)
             else:
-                arti_verts, arti_translation = self.arti(img, self.use_sampled_cam, camera_id)
+                arti_verts, arti_translation = self.arti(
+                    img_feats, self.use_sampled_cam, cam_idx)
 
         # TODO: add mesh articulation here, Daniel
         # NOTE: we need N articulated meshes
-        
+        # The vertices output is [B x 1 x M(vertices number) x 3 if use_gt_cam or use_sampled_cam, otherwise it is [B x H x M x 3]
+        if self.use_arti:
+            meshes = self._articulate_meshes(arti_verts)
+        else:
+            meshes = self.template_mesh.extend(img_feats.size(0))
+
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
             sphere_points, rotation, translation)
 
         # Render depth and mask of the template for the cam pose
-        pred_mask, pred_depth = self._render(rotation, translation)
+        pred_mask, pred_depth = self._render(
+            rotation, translation, meshes)
 
         out = {
             "pred_positions": pred_pos,
@@ -155,17 +167,42 @@ class CSM(torch.nn.Module):
 
         return out
 
-    def _get_camera_extrinsics(self, img, scale, trans, quat):
+    def _articulate_meshes(self, arti_verts: torch.Tensor):
+        """Method to 'apply' articulation to template mesh by creating new meshes with transformed vertices and the faces from the template mesh.
 
-        batch_size = img.size(0)
+        :param arti_verts: tensor of vertices from the articulated meshes. Result from articulation module.
+                Shape: [N x H x V x 3] 
+                    N: Batch Size
+                    H: Number of hypotheses for the prediction. H = 1 if use_sampled_cam = True else H = 8
+                    V: Number of vertices in the mesh
+        :return: meshes object containing batch_size*num_hypotheses many articulated versions of the template mesh.
+        """
+
+        # batch size * num of hypotheses
+        num_articulations = arti_verts.size(0) * arti_verts.size(1)
+
+        # merge hypotheses to the batch size
+        new_verts = torch.flatten(arti_verts, end_dim=1)
+        # new_verts_view = arti_verts.view(-1,arti_verts.size(2),arti_verts.size(3)) # ; equivalent to the line above
+
+        new_faces = self.template_mesh.faces_padded().repeat(num_articulations, 1, 1)
+        articulated_meshes = Meshes(verts=new_verts, faces=new_faces)
+
+        return articulated_meshes
+
+    def _get_camera_extrinsics(self, img_feats, scale, trans, quat):
+
+        batch_size = img_feats.size(0)
         pred_poses = None
-        
+
+        # default camera pose sample index, is ignored when not used
+        sample_idx = 0
         if self.use_gt_cam:
             rotation, translation = get_scaled_orthographic_projection(
                 scale, trans, quat, True)
         else:
-            cam_pred, sample_idx, pred_poses = self.multi_cam_pred(img)
-            
+            cam_pred, sample_idx, pred_poses = self.multi_cam_pred(img_feats)
+
             if self.use_sampled_cam:
                 pred_scale, pred_trans, pred_quat, _ = cam_pred
                 rotation, translation = get_scaled_orthographic_projection(
@@ -173,7 +210,8 @@ class CSM(torch.nn.Module):
             else:
                 pred_scale, pred_trans, pred_quat, _ = pred_poses
                 rotation, translation = get_scaled_orthographic_projection(
-                    pred_scale.view(-1), pred_trans.view(-1, 2), pred_quat.view(-1, 4)
+                    pred_scale.view(-1), pred_trans.view(-1,
+                                                         2), pred_quat.view(-1, 4)
                 )
                 rotation = rotation.view(batch_size, -1, 3, 3)
                 translation = translation.view(batch_size, -1, 2)
@@ -182,10 +220,7 @@ class CSM(torch.nn.Module):
             rotation = rotation.unsqueeze(1)
             translation = translation.unsqueeze(1)
 
-        if self.use_gt_cam:
-            return rotation, translation, pred_poses
-        else:
-            return rotation, translation, pred_poses, sample_idx
+        return rotation, translation, pred_poses, sample_idx
 
     def _get_projected_positions_of_sphere_points(self, sphere_points, rotation, translation):
         """
@@ -211,29 +246,33 @@ class CSM(torch.nn.Module):
 
         uv_flatten = uv.view(-1, 2)
         uv_3d = self.uv_to_3d(uv_flatten).view(batch_size, 1, -1, 3)
-        uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(batch_size*num_poses, -1, 3)
+        uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(
+            batch_size*num_poses, -1, 3)
 
-        xyz = torch.bmm(uv_3d, rotation.view(-1, 3, 3)) + translation.view(-1, 1, 3)
+        xyz = torch.bmm(uv_3d, rotation.view(-1, 3, 3)) + \
+            translation.view(-1, 1, 3)
         xyz = xyz.view(batch_size, num_poses, height, width, 3)
 
-        xy = xyz[:, :, :, :, :2]
-        z = xyz[:, :, :, :, 2:]
+        xy = xyz[..., :2]
+        z = xyz[..., 2:]
 
         xy = xy.permute(0, 1, 4, 2, 3)
         z = z.permute(0, 1, 4, 2, 3)
         uv = uv.permute(0, 3, 1, 2)
-        uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)[:, 0, :, :, :].squeeze()
+        uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)[
+            :, 0, :, :, :].squeeze()
 
         return xy, z, uv, uv_3d
 
-    def _render(self, rotation: torch.Tensor, translation: torch.Tensor) -> (torch.Tensor, torch.Tensor):
+    def _render(self, rotation: torch.Tensor, translation: torch.Tensor, meshes: Meshes) -> (torch.Tensor, torch.Tensor):
 
         batch_size = rotation.size(0)
         cam_poses = rotation.size(1)
 
         pred_mask, pred_depth = self.renderer(
             rotation.view(-1, 3, 3),
-            translation.view(-1, 3))
+            translation.view(-1, 3),
+            meshes)
 
         height = pred_mask.size(1)
         width = pred_mask.size(2)
@@ -243,6 +282,8 @@ class CSM(torch.nn.Module):
 
         # Pytorch renderer returns -1 values for the empty pixels which
         # when directly used results in wrong loss calculation so changing the values to the max + 1
-        pred_depth = pred_depth * torch.ceil(pred_mask) + (1 - torch.ceil(pred_mask)) * pred_depth.max()
+        pred_depth = pred_depth * \
+            torch.ceil(pred_mask) + (1 - torch.ceil(pred_mask)) * \
+            pred_depth.max()
 
         return pred_mask, pred_depth

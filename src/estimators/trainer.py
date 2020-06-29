@@ -52,7 +52,6 @@ class ITrainer:
         """
         Call this function to start training the model for the given number of epochs
         """
-
         self.config.update(kwargs)
 
         epoch_bar = tqdm(range(self.config.epochs), position=0, dynamic_ncols=True)

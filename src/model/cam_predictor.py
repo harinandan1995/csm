@@ -15,9 +15,8 @@ class CameraPredictor(nn.Module):
     and translation vector based on an image.
     """
 
-    def __init__(self, num_in_chans=3, num_feats=512, encoder=None, scale_bias=1.0, scale_lr=0.05):
+    def __init__(self,  num_feats=512, scale_bias=1.0, scale_lr=0.05):
         """
-        :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
         :param encoder: An feature extractor of an image. If None, resnet18 will bes used.
         :param num_feats: The number of extracted features from the encoder.
         :param scale_bias: bias term in R, which is added to the scale prediction.
@@ -26,19 +25,7 @@ class CameraPredictor(nn.Module):
         """
         super(CameraPredictor, self).__init__()
 
-        #self.conv1 = nn.Conv2d(in_channels=num_in_chans,
-        #                       out_channels=3,
-        #                       kernel_size=1)
 
-        # allows us to use only one shared encoder for all camera hypotheses in the multi-cam predictor.
-        #if not encoder:
-        #    self.encoder = get_encoder(conv1, trainable=False)
-        #else:
-        #    self.encoder = encoder
-
-
-        # TODO: combine first conv layer with encoder into one module
-        
         self._num_feats = num_feats
 
         self.fc = nn.Sequential(
@@ -52,37 +39,39 @@ class CameraPredictor(nn.Module):
         self.scale_bias = scale_bias
         self.scale_lr = scale_lr
 
-    def forward(self, x: torch.Tensor, as_vec: bool = False) -> Union[torch.Tensor, Tuple[Any, Any, Any, Any]]:
+    def forward(self, img_feats: torch.Tensor, as_vec: bool = False) -> Union[torch.Tensor, Tuple[Any, Any, Any, Any]]:
         """
         Predicts the camera pose represented by a 3-tuple of scale factor, translation vector and quaternions
         representing the rotation to an input image :param x.
-        :param x: The input image, for which the camera pose should be predicted.
+        :param img_feats: [N x F] input tensor containing batch_size number of encoded features from the input images.
+            N = batch size
+            F = number of features
         :param as_vec: Returns the results as tensors instead of tuples.
-        :return: if as_vec :
-            A 3-tuple containing the following tensors. (N = batch size)
-            scale: N X 1 vector, containing the scale factors.
-            translate: N X 2 tensor, containing the translation vectors for each sample
-            quat: N X 4 tensor, containing the quaternions representing the rotation for each sample.
-                the quaternions are mapped to the rotation matrix outside of this forward pass.
-            prob: [N x 1]: probability logit for a certain camera pose. only used in multi-hypotheses setting.
+        :return: 
+            if as_vec :
+                A 3-tuple containing the following tensors. (N = batch size)
+                scale: N X 1 vector, containing the scale factors.
+                translate: N X 2 tensor, containing the translation vectors for each sample
+                quat: N X 4 tensor, containing the quaternions representing the rotation for each sample.
+                    the quaternions are mapped to the rotation matrix outside of this forward pass.
+                prob: [N x 1]: probability logit for a certain camera pose. only used in multi-hypotheses setting.
             else:
                 [N x 8] tensor containing the above mentioned camera parameters in a tensor.
         """
-        #x = self.conv1(x)
-        #x = self.encoder(x)
+
         # convert NXCx1x1 tensor to a NXC vector
-        x = x.view(-1, self._num_feats)
-        x = self.fc(x)
+        img_feats = img_feats.view(-1, self._num_feats)
+        img_feats = self.fc(img_feats)
 
         # apply scale parameters
-        scale_raw = self.scale_lr * x[..., 0] + self.scale_bias
+        scale_raw = self.scale_lr * img_feats[..., 0] + self.scale_bias
         scale = F.relu(scale_raw) + 1E-12  # minimum scale is 0.0
 
         # normalize quaternions
-        norm_quats = F.normalize(x[..., 3:7])
+        norm_quats = F.normalize(img_feats[..., 3:7])
 
         z = torch.cat(
-            (scale.unsqueeze(-1), x[..., 1:3], norm_quats, x[..., 7:]), dim=-1)
+            (scale.unsqueeze(-1), img_feats[..., 1:3], norm_quats, img_feats[..., 7:]), dim=-1)
 
         return z if as_vec else vec_to_tuple(z)
 
@@ -91,18 +80,18 @@ class MultiCameraPredictor(nn.Module):
 
     """Module for predicting a set of camera poses and a corresponding probabilities."""
 
-    def __init__(self, num_hypotheses=8, encoder=None,device="cuda", **kwargs):
+    def __init__(self, num_hypotheses=8, device="cuda", **kwargs):
         """
-
         :param num_hypotheses: number of camera poses which should be predicted.
+        :param device: Device where the operations take place
         :param kwargs: arguments which are passed through to the single camera predictors
         """
         super(MultiCameraPredictor, self).__init__()
 
         self.num_hypotheses = num_hypotheses
-
+        self.device = device
         self.cam_preds = nn.ModuleList(
-            [CameraPredictor(encoder=encoder, **kwargs) for _ in range(num_hypotheses)])
+            [CameraPredictor(**kwargs) for _ in range(num_hypotheses)])
 
         # taken from the original repo
         base_rotation = matrix_to_quaternion(
@@ -112,7 +101,7 @@ class MultiCameraPredictor(nn.Module):
 
         # base_rotation = torch.FloatTensor(
         #     [0.9239, 0, 0.3827, 0]).unsqueeze(0).unsqueeze(0)  # pi/4 (45° )
-        # # base_rotation = torch.FloatTensor([ 0.7071,  0 , 0.7071,   0]).unsqueeze(0).unsqueeze(0) ## pi/2
+        # # base_rotation = torch.FloatTensor([ 0.7071,  0, 0.7071,  0]).unsqueeze(0).unsqueeze(0) ## pi/2
         # base_bias = torch.FloatTensor(
         #     [0.7071, 0.7071, 0, 0]).unsqueeze(0).unsqueeze(0)  # 90° by x-axis
 
@@ -122,23 +111,24 @@ class MultiCameraPredictor(nn.Module):
             self.cam_biases.append(quaternion_multiply(
                 base_rotation, self.cam_biases[i - 1]))
 
-        self.cam_biases = torch.stack(self.cam_biases).squeeze().to(device)
+        self.cam_biases = torch.stack(
+            self.cam_biases).squeeze().to(self.device)
 
-    def forward(self, x):
+    def forward(self, img_feats):
         """
         Predict a certain number of camera poses. Samples one of the poses according to a predicted probability.
-        :param x: [N x C X H X W] input tensor containing  batch_size number of rgb images.
+        :param img_feats: [N x F] input tensor containing batch_size number of encoded features from the input images.
             N = batch size
-            C = input channels (e.g. 3 for a rgb image)
-            H = W = size of the input image. e.g 255 x 255
+            F = number of features
         :return: 3-tuple containing
             - a sampled camera pose from the predicted camera poses, see CameraPredictor.forward for more documentation
             - the index of the camera which has been sampled
             - all predicted camera pose hypotheses, shape [N x H x 8 ]
              N = batch size, H = number of hypotheses, 8 = number of outputs from the pose predictor
         """
+        
         # make camera pose predictions
-        pred_pose = [cpp(x, as_vec=True) for cpp in self.cam_preds]
+        pred_pose = [cpp(img_feats, as_vec=True) for cpp in self.cam_preds]
         pred_pose = torch.stack(pred_pose, dim=1)
 
         # apply softmax to probabilities
@@ -147,7 +137,8 @@ class MultiCameraPredictor(nn.Module):
 
         quats = pred_pose[..., 3:7]
 
-        bias_quats = self.cam_biases.unsqueeze(0).repeat(quats.size(0), 1, 1)
+        bias_quats = self.cam_biases.unsqueeze(0).repeat(
+            quats.size(0), 1, 1)
         new_quats = quaternion_multiply(quats, bias_quats)
         pred_pose_new = torch.cat(
             (pred_pose[..., :3], new_quats, probs.unsqueeze(-1)), dim=-1)
@@ -181,4 +172,3 @@ def vec_to_tuple(x):
     prob = x[..., 7]
 
     return scale, translate, quat, prob
-
