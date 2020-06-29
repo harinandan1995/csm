@@ -141,7 +141,7 @@ class CSM(torch.nn.Module):
             meshes = self._articulate_meshes(arti_verts)
         else:
             meshes = self.template_mesh.extend(img_feats.size(0))
-        
+
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
             sphere_points, rotation, translation)
@@ -167,27 +167,27 @@ class CSM(torch.nn.Module):
 
         return out
 
-    def _articulate_meshes(self, arti_verts):
+    def _articulate_meshes(self, arti_verts: torch.Tensor):
+        """Method to 'apply' articulation to template mesh by creating new meshes with transformed vertices and the faces from the template mesh.
+
+        :param arti_verts: tensor of vertices from the articulated meshes. Result from articulation module.
+                Shape: [N x H x V x 3] 
+                    N: Batch Size
+                    H: Number of hypotheses for the prediction. H = 1 if use_sampled_cam = True else H = 8
+                    V: Number of vertices in the mesh
+        :return: meshes object containing batch_size*num_hypotheses many articulated versions of the template mesh.
+        """
 
         # batch size * num of hypotheses
-        num_articulations = arti_verts.size(1) * arti_verts.size(0)
+        num_articulations = arti_verts.size(0) * arti_verts.size(1)
 
         # merge hypotheses to the batch size
         new_verts = torch.flatten(arti_verts, end_dim=1)
-        # new_verts_view = arti_verts.view(-1,arti_verts.size(2),arti_verts.size(3))
+        # new_verts_view = arti_verts.view(-1,arti_verts.size(2),arti_verts.size(3)) # ; equivalent to the line above
+
         new_faces = self.template_mesh.faces_padded().repeat(num_articulations, 1, 1)
         articulated_meshes = Meshes(verts=new_verts, faces=new_faces)
 
-        # if arti_verts.size(1) == 1:
-        #     pass
-        #     # choose the only available hypothesis
-        #     # offsets =   meshes_batch.verts_padded() - arti_verts[:, 0, ...]
-        #     # packed_offsets = list_to_packed([*offsets])[0]
-        #     # self.renderer.packed_offsets = packed_offsets
-
-        # else:
-        #     # use all hypotheses
-        #     pass
         return articulated_meshes
 
     def _get_camera_extrinsics(self, img_feats, scale, trans, quat):

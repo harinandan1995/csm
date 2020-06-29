@@ -48,8 +48,12 @@ class MaskAndDepthRenderer(nn.Module):
             blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
 
     def forward(self, R: torch.Tensor, T: torch.Tensor, meshes: Meshes) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Combines the forward functions of mask and depth renderer. Argument are equal to both renderers parameters.
+        """Combines the forward functions of mask and depth renderer. Argument are equal to both renderers parameters.
+        
+        :param T: Translation vector of the camera
+        :param R: Rotation matrix of the camera
+        :param meshes: Contains a batch of meshes which should be rendered.
+
         :return: Tuple with [N X W X H] / [N X W X H X C] tensor.
                 with N = batch size, W = width of image, H = height of image, C = Channels. usually W=H.
         """
@@ -57,7 +61,7 @@ class MaskAndDepthRenderer(nn.Module):
         # meshes_batch = self.meshes.extend(batch_size)
         # meshes_batch = meshes.extend(batch_size)
 
-        # retrieve depth  map
+        # retrieve depth map
         fragments = self._rasterizer(meshes, R=R, T=T)
         silhouettes = self._shader(fragments, meshes)
         depth_maps = fragments.zbuf
