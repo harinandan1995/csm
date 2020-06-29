@@ -190,6 +190,7 @@ class Articulation(nn.Module):
                 ele_k = self._p_to_v[k]
                 alpha[ele_k,k] = 1
 
+        non_soften_verts = []
         for k in self._order_list:
             non_soften_verts += [(torch.matmul(
                 R_global[:, [k], ...], verts) + t_global[:, [k], ...]).squeeze(-1)]
