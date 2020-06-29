@@ -157,7 +157,7 @@ class Articulation(nn.Module):
         t_global = []
         R_global = []
         for k in self._order_list:
-            t_part += [- torch.bmm(R[:, k, ...], rotation_center[:, k, ...]) + rotation_center[:, k, ...] + t[:, k, ...]
+            t_part += [- torch.bmm(R[:, k, ...], rotation_center[:, k, ...]) + rotation_center[:, k, ...] + t[:, k, ...]]
             if self._parent[k] != -1:
 
                 R_global += [torch.bmm(R[:,self._parent[k],...],R[:,k,...])]
