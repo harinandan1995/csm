@@ -117,7 +117,7 @@ class Articulation(nn.Module):
         # p: [p, parent, grand_parent], no use now
         self._relationship = get_relationship(parent)
         # tree, [p_1, p_2, ...] if x < y, p_x could not be parent of p_y
-        self._tree, self._order_list = get_tree_order(parent)
+        self._tree, self._order_list, self._order_list_id = get_tree_order(parent)
 
         self._alpha = None
         if alpha is not None:
@@ -153,44 +153,51 @@ class Articulation(nn.Module):
         rotation_center = self._r_c.unsqueeze(
             0).unsqueeze(-1).repeat(batch_size, 1, 1, 1)
 
-        t_part = torch.zeros_like(t, requires_grad=True).to(self.device)
-        t_global = torch.zeros_like(t, requires_grad=True).to(self.device)
-        R_global = torch.zeros_like(R, requires_grad=True).to(self.device)
+        t_part = []
+        t_global = []
+        R_global = []
         for k in self._order_list:
-            t_part[:, k, ...] = - torch.bmm(R[:, k, ...], rotation_center[:, k, ...]
-                                            ) + rotation_center[:, k, ...] + t[:, k, ...]
+            t_part += [- torch.bmm(R[:, k, ...], rotation_center[:, k, ...]) + rotation_center[:, k, ...] + t[:, k, ...]
             if self._parent[k] != -1:
 
-                R_global[:,k,...] = torch.bmm(R[:,self._parent[k],...],R[:,k,...])
-                t_global[:,k,...] = torch.bmm(R_global[:,self._parent[k],...],t_part[:,k,...]) + t_part[:,self._parent[k],...]
+                R_global += [torch.bmm(R[:,self._parent[k],...],R[:,k,...])]
+                t_global += [torch.bmm(R_global[:,self._parent[k],...],t_part[self._order_list_id[k]]) + t_part[self._order_list_id[self._parent[k]]]]
             else:
-                t_global[:, k, ...] = t_part[:, k, ...]
-                R_global[:, k, ...] = R[:, k, ...]
+                t_global += [t_part[self._order_list_id[k]]]
+                R_global += [R[:, k, ...]]
+        
+        R_global = torch.stack(R_global, dim=1)
+        t_global = torch.stack(t_global, dim=1)
+        R_global = R_global[:,self._order_list_id, ...]
+        t_global = t_global[:,self._order_list_id, ...]
 
-        verts = self._mesh.verts_list()[0]
+
+        verts = self._mesh.verts_list()[0].clone()
         verts = verts.unsqueeze(0).unsqueeze(-1).repeat(batch_size, 1, 1, 1)
-        arti_verts = torch.zeros_like(
-            verts, requires_grad=True).to(self.device)
+
 
         if self._alpha is not None:
             alpha = self._alpha.unsqueeze(
                 0).unsqueeze(-1).repeat(batch_size, 1, 1, 3)  # [N x K x P x 3]
             alpha = alpha.transpose(2, 3)  # [N x K x 3 x P]
-            non_soften_verts = torch.zeros_like(
-                verts, requires_grad=True).to(self.device)
-            non_soften_verts = non_soften_verts.repeat(
-                1, 1, 1, self._num_parts)  # [N x K x 3 x P]
-            for k in self._order_list:
-                non_soften_verts[..., k] = (torch.matmul(
-                    R_global[:, [k], ...], verts) + t_global[:, [k], ...]).squeeze(-1)
-
-            arti_verts = (alpha * non_soften_verts).sum(-1)
-
+            #non_soften_verts = torch.zeros_like(
+            #    verts, requires_grad=True).to(self.device)
+            #non_soften_verts = non_soften_verts.repeat(
+            #    1, 1, 1, self._num_parts)  # [N x K x 3 x P]
         else:
+            alpha = torch.zeros([len(verts), self._num_parts], requires_grad = False)
             for k in self._order_list:
                 ele_k = self._p_to_v[k]
-                arti_verts[:, ele_k, ...] = torch.matmul(
-                    R[:, [k], ...], verts[:, ele_k, ...]) + t[:, [k], ...]
+                alpha[ele_k,k] = 1
+
+        for k in self._order_list:
+            non_soften_verts += [(torch.matmul(
+                R_global[:, [k], ...], verts) + t_global[:, [k], ...]).squeeze(-1)]
+
+        non_soften_verts = torch.stack(non_soften_verts, dim=-1)
+        non_soften_verts = non_soften_verts[..., self._order_list_id]
+
+        arti_verts = (alpha * non_soften_verts).sum(-1)
 
         arti_verts = arti_verts.squeeze(-1)
         t_net = t_net.squeeze(-1)
@@ -229,7 +236,7 @@ class MultiArticulation(nn.Module):
             K - the number of mesh vertice
         :param index_list: [N] list of the index indicates which articulation is used
         :return: A tuple (verts, loss)
-            - pred_verts:[N x 1 x K x 3] or 9[N x H x K x 3] he corrdinate of vertices for articulation prediction.for i-th camera
+            - pred_verts:[N x 1 x K x 3] or [N x H x K x 3] he corrdinate of vertices for articulation prediction.for i-th camera
             - pred_t:[N x 1 x P x 3]  or [N x H x K x 3]The corresponding loss for translation.for i-th camera
 
         """
@@ -240,17 +247,12 @@ class MultiArticulation(nn.Module):
             pred_verts, pred_t = zip(*pred)
             pred_verts = list(pred_verts)
             pred_t = list(pred_t)
-<<<<<<< HEAD
+
             pred_verts = torch.stack(pred_verts, dim = 0)
             pred_t = torch.stack(pred_t, dim = 0)
 
             #print(pred_verts.size())
             #print(pred_t.size())
-=======
-            pred_verts = torch.stack(pred_verts, dim=0)
-            pred_t = torch.stack(pred_t, dim=0)
-
->>>>>>> 0bed18e20c8041c1d44eecfe8863433791897cb6
             return pred_verts, pred_t
 
         else:
@@ -311,7 +313,11 @@ def get_tree_order(relationship: dict):
                 tree_list.append(p)
                 order.append(i)
         del tree_list[0]
-    return root, order
+
+    order_id = [ 0 for _ in order]
+    for loc, ele in enumerate(order):
+        order_id[ele] = loc
+    return root, order, order_id
 
 
 def get_r_c(rotation_center, num_parts):
