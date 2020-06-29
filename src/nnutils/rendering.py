@@ -23,7 +23,7 @@ from pytorch3d.structures import Meshes
 class MaskAndDepthRenderer(nn.Module):
     """Pytorch Module combining the mask and the depth renderer."""
 
-    def __init__(self, meshes: Meshes, image_size=256):
+    def __init__(self, device="cuda", image_size=256):
         """
         Initialization of the Renderer Class. Instances of the mask and depth renderer are create on corresponding
         device.
@@ -32,8 +32,8 @@ class MaskAndDepthRenderer(nn.Module):
         :param image_size: Image size for the rasterization. Default is 256.
         """
         super().__init__()
-        self.meshes = meshes
-        device = meshes.device
+        # self.meshes = meshes
+        # device = meshes.device
 
         cameras = OpenGLOrthographicCameras(device=device)
 
@@ -44,20 +44,22 @@ class MaskAndDepthRenderer(nn.Module):
                 faces_per_pixel=100)
         )
 
-        self._shader = SoftSilhouetteShader(blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
+        self._shader = SoftSilhouetteShader(
+            blend_params=(BlendParams(sigma=1e-4, gamma=1e-4)))
 
-    def forward(self, R: torch.Tensor, T: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, R: torch.Tensor, T: torch.Tensor, meshes: Meshes) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Combines the forward functions of mask and depth renderer. Argument are equal to both renderers parameters.
         :return: Tuple with [N X W X H] / [N X W X H X C] tensor.
                 with N = batch size, W = width of image, H = height of image, C = Channels. usually W=H.
         """
-        batch_size = R.size(0)
-        meshes_batch = self.meshes.extend(batch_size)
+        # batch_size = R.size(0)
+        # meshes_batch = self.meshes.extend(batch_size)
+        # meshes_batch = meshes.extend(batch_size)
+
         # retrieve depth  map
-        fragments = self._rasterizer(meshes_batch, R=R, T=T)
-        # output is not used here, but calling the shader is necessary
-        silhouettes = self._shader(fragments, meshes_batch)
+        fragments = self._rasterizer(meshes, R=R, T=T)
+        silhouettes = self._shader(fragments, meshes)
         depth_maps = fragments.zbuf
 
         # extract masks from alpha channel of rgba image
