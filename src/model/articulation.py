@@ -161,7 +161,7 @@ class Articulation(nn.Module):
             if self._parent[k] != -1:
 
                 R_global[:,k,...] = torch.bmm(R[:,self._parent[k],...],R[:,k,...])
-                t_global[:,k,...] = torch.bmm(R_global[:,self._parent[k],...],t_part[:,k,...]) + t_global[:,self._parent[k],...]
+                t_global[:,k,...] = torch.bmm(R_global[:,self._parent[k],...],t_part[:,k,...]) + t_part[:,self._parent[k],...]
             else:
                 t_global[:, k, ...] = t_part[:,k,...]
                 R_global[:, k, ...] = R[:,k,...]
@@ -236,7 +236,9 @@ class MultiArticulation(nn.Module):
             pred_t = list(pred_t)
             pred_verts = torch.stack(pred_verts, dim = 0)
             pred_t = torch.stack(pred_t, dim = 0)
-
+            
+            #print(pred_verts.size())
+            #print(pred_t.size()) 
             return pred_verts, pred_t
 
         else:
@@ -247,6 +249,8 @@ class MultiArticulation(nn.Module):
             pred_verts = torch.stack(pred_verts, dim=1)
             pred_t = torch.stack(pred_t, dim=1)
 
+            #print(pred_verts.size())
+            #print(pred_t.size()) 
             return pred_verts, pred_t
 
 
