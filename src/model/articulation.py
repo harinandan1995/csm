@@ -160,7 +160,7 @@ class Articulation(nn.Module):
             t_part += [- torch.bmm(R[:, k, ...], rotation_center[:, k, ...]) + rotation_center[:, k, ...] + t[:, k, ...]]
 
             if self._parent[k] != -1:
-                R_global += [torch.bmm(R[:,self._parent[k],...],R[:,k,...])]
+                R_global += [torch.bmm(R_global[self._order_list_id[self._parent[k]]],R[:,k,...])]
                 t_global += [torch.bmm(R_global[self._order_list_id[self._parent[k]]],t_part[self._order_list_id[k]]) + t_global[self._order_list_id[self._parent[k]]]]
             else:
                 t_global += [t_part[self._order_list_id[k]]]
