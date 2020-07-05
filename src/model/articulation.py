@@ -235,7 +235,7 @@ class MultiArticulation(nn.Module):
         :param index_list: [N] list of the index indicates which articulation is used
         :return: A tuple (verts, loss)
             - pred_verts:[N x 1 x K x 3] or [N x H x K x 3] he corrdinate of vertices for articulation prediction.for i-th camera
-            - pred_t:[N x 1 x P x 3]  or [N x H x K x 3]The corresponding loss for translation.for i-th camera
+            - pred_t:[N x 1 x P x 3]  or [N x H x P x 3]The corresponding loss for translation.for i-th camera
 
         """
 
