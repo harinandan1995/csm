@@ -54,7 +54,6 @@ class CSM(torch.nn.Module):
         self.template_mesh = template_mesh
         self.renderer = MaskAndDepthRenderer(device=self.template_mesh.device)
         # self.renderer = MaskAndDepthRenderer(meshes=template_mesh)
-        print(template_mesh.verts_list()[0].size())
 
         self.use_gt_cam = use_gt_cam
         self.use_sampled_cam = use_sampled_cam
@@ -67,14 +66,18 @@ class CSM(torch.nn.Module):
         if not self.use_gt_cam:
             self.multi_cam_pred = MultiCameraPredictor(
                 num_hypotheses=num_cam_poses, device=template_mesh.device)
+        else:
+            num_cam_poses = 1
 
         if self.use_arti:
             arti_mesh_info["template_mesh"] = template_mesh
             self.arti_epochs = arti_epochs
-            if self.use_gt_cam:
-                num_cam_poses = 1
             self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
                                             device=template_mesh.device, **arti_mesh_info)
+        if self.use_sampled_cam:
+            num_cam_poses = 1
+
+        self.num_cam_poses = num_cam_poses #number of camera postion used in rendering for each image
 
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
@@ -114,7 +117,7 @@ class CSM(torch.nn.Module):
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
         img_feats = None
-        if (self.use_arti and epochs >= self.arti_epochs)or not self.use_gt_cam:
+        if (self.use_arti and epochs >= self.arti_epochs) or not self.use_gt_cam:
             img_feats = self.encoder(img)
             img_feats = img_feats.view(len(img_feats), -1)
 
@@ -133,7 +136,7 @@ class CSM(torch.nn.Module):
         if self.use_arti and epochs >= self.arti_epochs:
             meshes = self._articulate_meshes(arti_verts)
         else:
-            meshes = self.template_mesh.extend(img.size(0))
+            meshes = self.template_mesh.extend(img.size(0) * self.num_cam_poses)
 
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
