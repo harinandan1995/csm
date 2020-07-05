@@ -217,15 +217,8 @@ class MultiArticulation(nn.Module):
 
         self.arti = nn.ModuleList(
             [Articulation(**kwargs) for _ in range(num_hypotheses)])
-        # if encoder is None:
-        #    self.arti = nn.ModuleList(
-        #        [Articulation(**kwargs) for _ in range(num_hypotheses)])
-        # else:
-        #    assert len(encoder) == num_hypotheses
-        #    #self.arti = nn.ModuleList(
-        #    self.arti =  [Articulation(encoder=encoder[i], **kwargs) for i in range(num_hypotheses)]#)
 
-    def forward(self, x, use_sampled_cam=True, index_list=[]):
+    def forward(self, x, use_gt_cam=True, use_sampled_cam=True, index_list=[]):
         """Predict a certain number of articulation.
         ::param x: [N x F]  The input images, for which the articulation should be predicted.
             N - batch size
@@ -239,7 +232,13 @@ class MultiArticulation(nn.Module):
 
         """
 
-        if use_sampled_cam:
+        if use_gt_cam:
+            assert self.num_hypotheses == 1
+            pred_verts, pred_t = self.arti[0](x)
+            pred_verts = pred_verts.unsqueeze(1)
+            pred_t = pred_t.unsqueeze(1)
+
+        elif use_sampled_cam:
             pred = [self.arti[index](x[[num], ...])
                     for num, index in enumerate(index_list)]
             pred_verts, pred_t = zip(*pred)
@@ -251,7 +250,6 @@ class MultiArticulation(nn.Module):
 
             #print(pred_verts.size())
             #print(pred_t.size())
-            return pred_verts, pred_t
 
         else:
             pred = [ar(x) for ar in self.arti]
@@ -263,7 +261,7 @@ class MultiArticulation(nn.Module):
 
             #print(pred_verts.size())
             #print(pred_t.size())
-            return pred_verts, pred_t
+        return pred_verts, pred_t
 
 
 def get_p_to_v(parts: list, num_parts: int):
