@@ -36,7 +36,7 @@ class UVto3D(nn.Module):
             [self.uv_res[1] - 1, self.uv_res[0] - 1], dtype=torch.float32).view(1, 2), 
             requires_grad=False)
 
-    def forward(self, uv: torch.Tensor) -> torch.Tensor:
+    def forward(self, uv: torch.Tensor, arti_verts = None) -> torch.Tensor:
 
         """
         For each UV value
@@ -47,6 +47,7 @@ class UVto3D(nn.Module):
         - Use barycentric coordinates to find the 3D coordinate of the given UV value
 
         :param uv: [B, 2] tensor with UV values (0-1) for which the corresponding 3D points should be calculated
+        :param arti_verts: A [B X CP X K X 3] articulated mesh vertices tensor or None if no use of articulation
         :return: A [B, 3] tensor with the 3D coordinates fot the corresponding UV values
         """
 
@@ -66,10 +67,30 @@ class UVto3D(nn.Module):
         # Find the barycentric coordinates for the point w.r.t the face
         bary_cord = compute_barycentric_coordinates(face_uv_verts, uv)
 
-        face_verts = torch.stack(
-            [self.verts_3d[uv_faces[:, 0]],
-             self.verts_3d[uv_faces[:, 1]],
-             self.verts_3d[uv_faces[:, 2]]], dim=1)
+        if arti_verts is not None:
+            batch_size, num_poses,_ ,_ = arti_verts.size()
+            uv_faces = uv_faces.view(batch_size, num_poses, -1 , 3)
+
+            all_batches = []
+            for i in range(batch_size):
+                all_poses = []
+                for j in range(num_poses):
+                    face_verts_part = torch.stack(
+                        [arti_verts[i, j, uv_faces[i, j, :, 0], :],
+                         arti_verts[i, j, uv_faces[i, j, :, 1], :],
+                         arti_verts[i, j, uv_faces[i, j, :, 2], :]], dim=1)
+                    all_poses.append(face_verts_part)
+                all_batches.append(torch.stack(all_poses, dim=0))
+
+            face_verts = torch.stack(all_batches, dim=0)
+            face_verts = face_verts.view(-1, 3, 3)
+
+
+        else:
+            face_verts = torch.stack(
+                [self.verts_3d[uv_faces[:, 0]],
+                 self.verts_3d[uv_faces[:, 1]],
+                 self.verts_3d[uv_faces[:, 2]]], dim=1)
 
         # Use barycentric coordinates to find the 3D coordinate of the given UV value
         points3d = face_verts * bary_cord[:, :, None]

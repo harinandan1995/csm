@@ -70,12 +70,11 @@ class CSM(torch.nn.Module):
         if self.use_arti:
             arti_mesh_info["template_mesh"] = template_mesh
             self.arti_epochs = arti_epochs
-            if not self.use_gt_cam:
-                self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
-                                              device=template_mesh.device, **arti_mesh_info)
             if self.use_gt_cam:
-                self.arti = Articulation(
-                    device=template_mesh.device, **arti_mesh_info)
+                num_cam_poses = 1
+            self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
+                                            device=template_mesh.device, **arti_mesh_info)
+
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
                 scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor, epochs: int):
@@ -113,38 +112,30 @@ class CSM(torch.nn.Module):
         sphere_points = torch.tanh(sphere_points)
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
-        if not self.use_gt_cam or self.use_arti:
-            img_feats = self.encoder(img)
-            img_feats = img_feats.view(len(img_feats), -1)
+        img_feats = self.encoder(img)
+        img_feats = img_feats.view(len(img_feats), -1)
 
-        if self.use_gt_cam:
-            rotation, translation, pred_poses, _ = self._get_camera_extrinsics(
-                img_feats, scale, trans, quat)
-        else:
-            rotation, translation, pred_poses, cam_idx = self._get_camera_extrinsics(
-                img_feats, scale, trans, quat)
+        rotation, translation, pred_poses, cam_idx = self._get_camera_extrinsics(
+            img_feats, scale, trans, quat)
 
         if self.use_arti and epochs >= self.arti_epochs:
-
-            if self.use_gt_cam:
-                arti_verts, arti_translation = self.arti(img_feats)
-                arti_verts = arti_verts.unsqueeze(1)
-                arti_translation = arti_translation.unsqueeze(1)
-            else:
-                arti_verts, arti_translation = self.arti(
-                    img_feats, self.use_sampled_cam, cam_idx)
+            arti_verts, arti_translation = self.arti(
+                img_feats, self.use_gt_cam, self.use_sampled_cam, cam_idx)
+        else:
+            arti_verts = None
 
         # TODO: add mesh articulation here, Daniel
         # NOTE: we need N articulated meshes
         # The vertices output is [B x 1 x M(vertices number) x 3 if use_gt_cam or use_sampled_cam, otherwise it is [B x H x M x 3]
-        if self.use_arti:
+        if self.use_arti and epochs >= self.arti_epochs:
             meshes = self._articulate_meshes(arti_verts)
         else:
-            meshes = self.template_mesh.extend(img_feats.size(0))
+            meshes = self.template_mesh.extend(img.size(0))
 
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
-            sphere_points, rotation, translation)
+            sphere_points, rotation, translation, arti_verts)
+
 
         # Render depth and mask of the template for the cam pose
         pred_mask, pred_depth = self._render(
@@ -222,7 +213,7 @@ class CSM(torch.nn.Module):
 
         return rotation, translation, pred_poses, sample_idx
 
-    def _get_projected_positions_of_sphere_points(self, sphere_points, rotation, translation):
+    def _get_projected_positions_of_sphere_points(self, sphere_points, rotation, translation, arti_verts):
         """
         For the given points on unit sphere calculates the 3D coordinates on the mesh template
         and projects them back to image plane
@@ -230,6 +221,7 @@ class CSM(torch.nn.Module):
         :param sphere_points: A (B X 3 X H X W) tensor containing the predicted points on the sphere
         :param rotation: A (B X CP X 3 X 3) camera rotation tensor
         :param translation: A (B X CP X 3) camera translation tensor
+        :param meshes: A (B X CP X K X 3) articulated mesh vertices tensor or None if no use of articulation
         :return: A tuple(xy, z, uv, uv_3d)
             - xy - (B X CP X 2 X H X W) x,y values of the 3D points after projecting onto image plane
             - z - (B X CP X 1 X H X W) z value of the projection
@@ -244,13 +236,21 @@ class CSM(torch.nn.Module):
         width = uv.size(2)
         num_poses = rotation.size(1)
 
-        uv_flatten = uv.view(-1, 2)
-        uv_3d = self.uv_to_3d(uv_flatten).view(batch_size, 1, -1, 3)
-        uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(
-            batch_size*num_poses, -1, 3)
+        if arti_verts is not None:
+            uv_new = uv.view(batch_size, height*width, 2)
+            uv_new = uv_new.unsqueeze(1).repeat(1, num_poses, 1, 1)
+            uv_flatten = uv_new.view(-1, 2)
+            uv_3d = self.uv_to_3d(uv_flatten, arti_verts).view(batch_size * num_poses, -1, 3)
+
+        else:
+
+            uv_flatten = uv.view(-1, 2)
+            uv_3d = self.uv_to_3d(uv_flatten).view(batch_size, 1, -1, 3)
+            uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(
+                batch_size*num_poses, -1, 3)
 
         xyz = torch.bmm(uv_3d, rotation.view(-1, 3, 3)) + \
-            translation.view(-1, 1, 3)
+              translation.view(-1, 1, 3)
         xyz = xyz.view(batch_size, num_poses, height, width, 3)
 
         xy = xyz[..., :2]
