@@ -29,7 +29,7 @@ class CubDataset(IDataset):
     def _get_mean_shape(self):
 
         mean_shape = load_mean_shape(
-            osp.join(self.config.dir.cache_dir, 'uv', 'mean_shape.mat'), device=self.device)
+            osp.join(self.config.dir.cache_dir,'shapenet', 'bird', 'shape.mat'), device=self.device)
 
         return mean_shape
 
@@ -39,7 +39,7 @@ class CubDataset(IDataset):
         kp_names = ['Back', 'Beak', 'Belly', 'Breast', 'Crown', 'FHead', 'LEye',
                     'LLeg', 'LWing', 'Nape', 'REye', 'RLeg', 'RWing', 'Tail', 'Throat']
 
-        anno_train_sfm_path = osp.join(self.config.dir.cache_dir, 'sfm', 'anno_%s.mat' % 'train')
+        anno_train_sfm_path = osp.join(self.config.dir.cache_dir, 'cub', 'sfm', 'anno_%s.mat' % 'train')
         validate_paths(anno_train_sfm_path)
 
         kp_3d = sio.loadmat(anno_train_sfm_path, struct_as_record=False, squeeze_me=True)['S'].transpose().copy()
@@ -70,10 +70,10 @@ class CubDataset(IDataset):
     def load_data(self):
 
         cache_dir = self.config.dir.cache_dir
-        model_dir = osp.join(self.config.dir.cache_dir, '../models', 'birds')
+        model_dir = osp.join(self.config.dir.cache_dir, 'models', 'bird')
 
-        anno_path = osp.join(cache_dir, 'data', '%s_cub_cleaned.mat' % self.config.split)
-        anno_sfm_path = osp.join(cache_dir, 'sfm', 'anno_%s.mat' % self.config.split)
+        anno_path = osp.join(cache_dir, 'cub', 'data', '%s_cub_cleaned.mat' % self.config.split)
+        anno_sfm_path = osp.join(cache_dir, 'cub', 'sfm', 'anno_%s.mat' % self.config.split)
 
         validate_paths(anno_path, anno_sfm_path)
 
@@ -81,7 +81,7 @@ class CubDataset(IDataset):
         print('Loading cub annotations from %s' % anno_path)
         self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
         self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
-        self.arti_info_mesh = mesh_info(obj_class=self.category, model_dir=model_dir)
+        self.arti_info_mesh = mesh_info(obj_class="bird", model_dir=model_dir)
 
         self.num_samples = len(self.anno)
 

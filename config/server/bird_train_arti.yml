@@ -13,9 +13,9 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/bird/map3.png'
-    template: '/mnt/raid/csmteam/datasets/cachedir/cub/model/mean_bird_fixed.obj'
+    template: '/mnt/raid/csmteam/datasets/cachedir/models/bird/bird.obj'
     data_dir: '/mnt/raid/csmteam/datasets/CUB_200_2011'
-    cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir'
 
 train:
   batch_size: 16

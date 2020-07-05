@@ -54,6 +54,7 @@ class CSM(torch.nn.Module):
         self.template_mesh = template_mesh
         self.renderer = MaskAndDepthRenderer(device=self.template_mesh.device)
         # self.renderer = MaskAndDepthRenderer(meshes=template_mesh)
+        print(template_mesh.verts_list()[0].size())
 
         self.use_gt_cam = use_gt_cam
         self.use_sampled_cam = use_sampled_cam

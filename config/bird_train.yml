@@ -13,9 +13,9 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/bird/map3.png'
-    template: 'datasets/cachedir/cub/model/mean_bird_fixed.obj'
+    template: 'datasets/cachedir/models/bird/bird.obj'
     data_dir: 'datasets/CUB_200_2011'
-    cache_dir: 'datasets/cachedir/cub'
+    cache_dir: 'datasets/cachedir'
 
 train:
   batch_size: 5
@@ -29,6 +29,7 @@ train:
   use_arti: False
   num_cam_poses: 8
   pose_warmup_epochs: 10
+  arti_epochs: 0
   log:
     image_summary_step: 30
     image_epoch: 1
