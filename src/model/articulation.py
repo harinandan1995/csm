@@ -134,7 +134,8 @@ class Articulation(nn.Module):
             P - the  number of parts
         :return: A tuple (verts, loss)
             - verts:[N x K x 3] The corrdinate of vertices for articulation prediction.
-            - t_net:[N x P x 3] The corresponding loss for translation.
+            - R: [N x P x 3 x 3] The corresponding part rotation
+            - t_net:[N x P x 3] The corresponding part translation.
         """
 
         #x = self._encoder(x)
@@ -201,7 +202,7 @@ class Articulation(nn.Module):
         t_net = t_net.squeeze(-1)
         #loss = t_net.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
 
-        return arti_verts, t_net
+        return arti_verts, R, t_net
 
 
 class MultiArticulation(nn.Module):
@@ -234,34 +235,39 @@ class MultiArticulation(nn.Module):
 
         if use_gt_cam:
             assert self.num_hypotheses == 1
-            pred_verts, pred_t = self.arti[0](x)
+            pred_verts, pred_r, pred_t = self.arti[0](x)
             pred_verts = pred_verts.unsqueeze(1)
             pred_t = pred_t.unsqueeze(1)
+            pred_r = pred_r.unsqueeze(1)
 
         elif use_sampled_cam:
             pred = [self.arti[index](x[[num], ...])
                     for num, index in enumerate(index_list)]
-            pred_verts, pred_t = zip(*pred)
+            pred_verts, pred_r, pred_t = zip(*pred)
             pred_verts = list(pred_verts)
             pred_t = list(pred_t)
+            pred_r = list(pred_r)
 
             pred_verts = torch.stack(pred_verts, dim = 0)
             pred_t = torch.stack(pred_t, dim = 0)
+            pred_r = torch.stack(pred_r, dim = 0)
 
             #print(pred_verts.size())
             #print(pred_t.size())
 
         else:
             pred = [ar(x) for ar in self.arti]
-            pred_verts, pred_t = zip(*pred)
+            pred_verts, pred_r, pred_t = zip(*pred)
             pred_verts = list(pred_verts)
             pred_t = list(pred_t)
+            pred_r = list(pred_r)
             pred_verts = torch.stack(pred_verts, dim=1)
             pred_t = torch.stack(pred_t, dim=1)
+            pred_r = torch.stack(pred_r, dim=1)
 
             #print(pred_verts.size())
             #print(pred_t.size())
-        return pred_verts, pred_t
+        return pred_verts, pred_r, pred_t
 
 
 def get_p_to_v(parts: list, num_parts: int):
