@@ -7,6 +7,7 @@ from src.data.dataset import IDataset
 from src.data.utils import transformations
 from src.nnutils.geometry import load_mean_shape
 from src.utils.utils import validate_paths
+from src.data.utils.part_info import mesh_info
 
 
 class CubDataset(IDataset):
@@ -69,6 +70,7 @@ class CubDataset(IDataset):
     def load_data(self):
 
         cache_dir = self.config.dir.cache_dir
+        model_dir = osp.join(self.config.dir.cache_dir, '../models', 'birds')
 
         anno_path = osp.join(cache_dir, 'data', '%s_cub_cleaned.mat' % self.config.split)
         anno_sfm_path = osp.join(cache_dir, 'sfm', 'anno_%s.mat' % self.config.split)
@@ -79,6 +81,7 @@ class CubDataset(IDataset):
         print('Loading cub annotations from %s' % anno_path)
         self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
         self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
+        self.arti_info_mesh = mesh_info(obj_class=self.category, model_dir=model_dir)
 
         self.num_samples = len(self.anno)
 

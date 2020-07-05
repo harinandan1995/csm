@@ -112,17 +112,19 @@ class CSM(torch.nn.Module):
         sphere_points = torch.tanh(sphere_points)
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
-        img_feats = self.encoder(img)
-        img_feats = img_feats.view(len(img_feats), -1)
+        img_feats = None
+        if (self.use_arti and epochs >= self.arti_epochs)or not self.use_gt_cam:
+            img_feats = self.encoder(img)
+            img_feats = img_feats.view(len(img_feats), -1)
 
         rotation, translation, pred_poses, cam_idx = self._get_camera_extrinsics(
             img_feats, scale, trans, quat)
 
+        arti_verts = None
         if self.use_arti and epochs >= self.arti_epochs:
             arti_verts, arti_translation = self.arti(
                 img_feats, self.use_gt_cam, self.use_sampled_cam, cam_idx)
-        else:
-            arti_verts = None
+
 
         # TODO: add mesh articulation here, Daniel
         # NOTE: we need N articulated meshes
@@ -183,7 +185,6 @@ class CSM(torch.nn.Module):
 
     def _get_camera_extrinsics(self, img_feats, scale, trans, quat):
 
-        batch_size = img_feats.size(0)
         pred_poses = None
 
         # default camera pose sample index, is ignored when not used
@@ -192,6 +193,7 @@ class CSM(torch.nn.Module):
             rotation, translation = get_scaled_orthographic_projection(
                 scale, trans, quat, True)
         else:
+            batch_size = img_feats.size(0)
             cam_pred, sample_idx, pred_poses = self.multi_cam_pred(img_feats)
 
             if self.use_sampled_cam:

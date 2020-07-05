@@ -26,6 +26,7 @@ train:
   out_dir: './out'
   use_gt_cam: True
   use_sampled_cam: False
+  use_arti: False
   num_cam_poses: 8
   pose_warmup_epochs: 10
   log:
