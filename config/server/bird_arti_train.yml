@@ -29,7 +29,7 @@ train:
   use_arti: True
   num_cam_poses: 8
   pose_warmup_epochs: 10
-  arti_epochs: 0
+  arti_epochs: 30
   log:
     image_summary_step: 50
     image_epoch: 1

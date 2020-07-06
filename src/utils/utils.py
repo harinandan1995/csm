@@ -60,7 +60,9 @@ def add_train_arguments(sub_parser: argparse.ArgumentParser):
     sub_parser.add_argument('--train.use_gt_cam', required=False, type=str2bool)
     sub_parser.add_argument('--train.num_cam_poses', required=False, type=int)
     sub_parser.add_argument('--train.use_sampled_cam', required=False, type=str2bool)
+    sub_parser.add_argument('--train.use_arti', required=False, type=str2bool)
     sub_parser.add_argument('--train.pose_warmup_epochs', required=False, type=int)
+    sub_parser.add_argument('--train.arti_epochs', required=False, type=int)
 
     sub_parser.add_argument('--train.loss.geometric', required=False, type=float)
     sub_parser.add_argument('--train.loss.visibility', required=False, type=float)
@@ -81,6 +83,7 @@ def add_kp_test_arguments(sub_parser: argparse.ArgumentParser):
     sub_parser.add_argument('--test.use_gt_cam', required=False, type=str2bool)
     sub_parser.add_argument('--test.num_cam_poses', required=False, type=int)
     sub_parser.add_argument('--test.use_sampled_cam', required=False, type=str2bool)
+    sub_parser.add_argument('--test.use_arti', required=False, type=str2bool)
     sub_parser.add_argument('-ck', '--test.checkpoint', required=False, type=str)
     sub_parser.add_argument('--test.alpha', required=False, type=float, nargs='+')
     sub_parser.add_argument('--test.add_summaries', required=False, type=str2bool)

@@ -130,7 +130,6 @@ class CSM(torch.nn.Module):
                 img_feats, self.use_gt_cam, self.use_sampled_cam, cam_idx)
 
 
-        # TODO: add mesh articulation here, Daniel
         # NOTE: we need N articulated meshes
         # The vertices output is [B x 1 x M(vertices number) x 3 if use_gt_cam or use_sampled_cam, otherwise it is [B x H x M x 3]
         if self.use_arti and epochs >= self.arti_epochs:
