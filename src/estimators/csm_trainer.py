@@ -95,7 +95,7 @@ class CSMTrainer(ITrainer):
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, epoch : int, pose_warmup: bool = False, not_arti: bool = True) -> torch.tensor:
+    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, pose_warmup: bool = False, not_arti: bool = True) -> torch.tensor:
         """Calculates the loss from the output
 
         :param mask: (B X 1 X H X W) foreground mask
@@ -110,6 +110,7 @@ class CSMTrainer(ITrainer):
         pred_positions = pred_out['pred_positions']
 
         loss = torch.zeros_like(self.running_loss)
+        # loss = torch.zeros_like(self.running_loss, requires_grad = True)
 
         prob_coeffs = None
         if not self.config.use_gt_cam and not self.config.use_sampled_cam:
@@ -117,6 +118,8 @@ class CSMTrainer(ITrainer):
             prob_coeffs = torch.add(prob_coeffs, 0.1)
 
         if self.config.loss.geometric > 0 and not pose_warmup:
+            print("\n\n")
+            print(1)
             loss[0] = self.config.loss.geometric * geometric_cycle_consistency_loss(
                 self.gt_2d_pos_grid, pred_positions, mask, coeffs=prob_coeffs)
         
@@ -133,7 +136,6 @@ class CSMTrainer(ITrainer):
             if self.config.loss.quat > 0 and not pose_warmup:
                 loss[4] = self.config.loss.quat * quaternion_regularization_loss(pred_quat)
 
-        #TODO:add config: use_arti & loss.arti & arti_threshold
         if self.config.use_arti and not not_arti:
             pred_arti_translation = pred_out["pred_arti_translation"]
             loss[5] = self.config.loss.arti * articulation_loss(pred_arti_translation)
