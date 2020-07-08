@@ -53,10 +53,10 @@ class CSMTrainer(ITrainer):
 
         self.texture_map = self.dataset.texture_map
         self.template_mesh = self.dataset.template_mesh
-        template_mesh_colors = self._get_template_mesh_colors()
+        self.template_mesh_colors = self._get_template_mesh_colors()
         self.summary_writer.add_mesh('Template', self.template_mesh.verts_packed().unsqueeze(0),
                                      faces=self.template_mesh.faces_packed().unsqueeze(0),
-                                     colors=template_mesh_colors)
+                                     colors=self.template_mesh_colors)
         self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
 
         # Running losses to calculate mean loss per epoch for all types of losses
@@ -139,6 +139,7 @@ class CSMTrainer(ITrainer):
         if self.config.use_arti and not not_arti:
             pred_arti_translation = pred_out["pred_arti_translation"]
             loss[5] = self.config.loss.arti * articulation_loss(pred_arti_translation)
+            self.verts = pred_out["arti"]
 
         self.running_loss = torch.add(self.running_loss, loss)
 
@@ -161,6 +162,13 @@ class CSMTrainer(ITrainer):
             self.summary_writer.add_scalar('loss/mask', self.running_loss[2], current_epoch)
             self.summary_writer.add_scalar('loss/diverse', self.running_loss[3], current_epoch)
             self.summary_writer.add_scalar('loss/quat', self.running_loss[4], current_epoch)
+
+        if current_epoch >= self.config.arti_epochs:
+
+            self.summary_writer.add_mesh('Template_overfitting', self.verts,
+                                         faces=self.template_mesh.faces_packed().unsqueeze(0),
+                                         colors=self.template_mesh_colors)
+
 
         self.running_loss = torch.zeros_like(self.running_loss)
 

@@ -152,7 +152,8 @@ class CSM(torch.nn.Module):
             "pred_masks": torch.flip(pred_mask, (-1, -2)),
             "pred_z": pred_z,
             "uv_3d": uv_3d,
-            "uv": uv
+            "uv": uv,
+            "arti": arti_verts
         }
 
         if not self.use_gt_cam:
