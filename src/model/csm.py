@@ -121,7 +121,7 @@ class CSM(torch.nn.Module):
             img_feats = self.encoder(img)
             img_feats = img_feats.view(len(img_feats), -1)
 
-        rotation, translation, pred_poses, cam_idx = self._get_camera_extrinsics(
+        rotation, translation, pred_poses, cam_idx, prob = self._get_camera_extrinsics(
             img_feats, scale, trans, quat)
 
         arti_verts = None
@@ -142,6 +142,9 @@ class CSM(torch.nn.Module):
             sphere_points, rotation, translation, arti_verts)
 
 
+
+
+
         # Render depth and mask of the template for the cam pose
         pred_mask, pred_depth = self._render(
             rotation, translation, meshes)
@@ -153,7 +156,6 @@ class CSM(torch.nn.Module):
             "pred_z": pred_z,
             "uv_3d": uv_3d,
             "uv": uv,
-            "arti": arti_verts
         }
 
         if not self.use_gt_cam:
@@ -161,6 +163,10 @@ class CSM(torch.nn.Module):
 
         if self.use_arti and epochs >= self.arti_epochs:
             out["pred_arti_translation"] = arti_translation
+            arti_verts_s = arti_verts.detach().squeeze(0)
+            out["arti"]=arti_verts_s
+
+
 
         return out
 
@@ -201,11 +207,11 @@ class CSM(torch.nn.Module):
             cam_pred, sample_idx, pred_poses = self.multi_cam_pred(img_feats)
 
             if self.use_sampled_cam:
-                pred_scale, pred_trans, pred_quat, _ = cam_pred
+                pred_scale, pred_trans, pred_quat, pred_prob = cam_pred
                 rotation, translation = get_scaled_orthographic_projection(
                     pred_scale, pred_trans, pred_quat)
             else:
-                pred_scale, pred_trans, pred_quat, _ = pred_poses
+                pred_scale, pred_trans, pred_quat, pred_prob = pred_poses
                 rotation, translation = get_scaled_orthographic_projection(
                     pred_scale.view(-1), pred_trans.view(-1,
                                                          2), pred_quat.view(-1, 4)
@@ -217,7 +223,7 @@ class CSM(torch.nn.Module):
             rotation = rotation.unsqueeze(1)
             translation = translation.unsqueeze(1)
 
-        return rotation, translation, pred_poses, sample_idx
+        return rotation, translation, pred_poses, sample_idx, pred_prob
 
     def _get_projected_positions_of_sphere_points(self, sphere_points, rotation, translation, arti_verts):
         """
