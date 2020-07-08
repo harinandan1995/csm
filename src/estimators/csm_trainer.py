@@ -161,7 +161,7 @@ class CSMTrainer(ITrainer):
             self.summary_writer.add_scalar('loss/diverse', self.running_loss[3], current_epoch)
             self.summary_writer.add_scalar('loss/quat', self.running_loss[4], current_epoch)
 
-        if self.config.use_arti and self.current_epoch >= self.config.arti_epochs and \
+        if self.config.use_arti and current_epoch >= self.config.arti_epochs and \
                                 current_epoch % self.config.log.image_epoch == 0 :
             self.summary_writer.add_mesh('Template_overfitting', self.verts,
                                          faces=self.template_mesh.faces_packed().unsqueeze(0).repeat(self.verts.size(0),1,1),
