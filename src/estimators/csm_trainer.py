@@ -118,8 +118,6 @@ class CSMTrainer(ITrainer):
             prob_coeffs = torch.add(prob_coeffs, 0.1)
 
         if self.config.loss.geometric > 0 and not pose_warmup:
-            print("\n\n")
-            print(1)
             loss[0] = self.config.loss.geometric * geometric_cycle_consistency_loss(
                 self.gt_2d_pos_grid, pred_positions, mask, coeffs=prob_coeffs)
         
