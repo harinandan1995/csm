@@ -118,8 +118,6 @@ class CSMTrainer(ITrainer):
             prob_coeffs = torch.add(prob_coeffs, 0.1)
 
         if self.config.loss.geometric > 0 and not pose_warmup:
-            print("\n\n")
-            print(1)
             loss[0] = self.config.loss.geometric * geometric_cycle_consistency_loss(
                 self.gt_2d_pos_grid, pred_positions, mask, coeffs=prob_coeffs)
         
@@ -161,6 +159,9 @@ class CSMTrainer(ITrainer):
             self.summary_writer.add_scalar('loss/mask', self.running_loss[2], current_epoch)
             self.summary_writer.add_scalar('loss/diverse', self.running_loss[3], current_epoch)
             self.summary_writer.add_scalar('loss/quat', self.running_loss[4], current_epoch)
+
+        if self.config.use_arti:
+            self.summary_writer.add_scalar('loss/arti_translation', self.running_loss[5], current_epoch)
 
         self.running_loss = torch.zeros_like(self.running_loss)
 

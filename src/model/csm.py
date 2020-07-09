@@ -210,7 +210,7 @@ class CSM(torch.nn.Module):
                                                          2), pred_quat.view(-1, 4)
                 )
                 rotation = rotation.view(batch_size, -1, 3, 3)
-                translation = translation.view(batch_size, -1, 2)
+                translation = translation.view(batch_size, -1, 3)
 
         if self.use_gt_cam or self.use_sampled_cam:
             rotation = rotation.unsqueeze(1)
