@@ -23,7 +23,7 @@ train:
   shuffle: True
   workers: 16
   checkpoint: ''
-  out_dir: '/mnt/raid/csmteam/out/arti'
+  out_dir: '/mnt/raid/csmteam/out'
   use_gt_cam: False
   use_sampled_cam: True
   use_arti: False
