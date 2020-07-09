@@ -68,7 +68,7 @@ class ImnetDataset(IDataset):
         cache_dir = osp.join(self.config.dir.cache_dir, 'imnet')
         model_dir = osp.join(self.config.dir.cache_dir, 'models', '%s' % self.category)
 
-        anno_path = osp.join(cache_dir, 'data', 'overfitting', '%s_%s.mat' % (self.sysnet_id, self.config.split))
+        anno_path = osp.join(cache_dir, 'data', 'overfitting', '%s_%s_2870.mat' % (self.sysnet_id, self.config.split))
         anno_sfm_path = osp.join(cache_dir, 'sfm', '%s_%s.mat' % (self.sysnet_id, self.config.split))
         validate_paths(anno_path, anno_sfm_path)
 

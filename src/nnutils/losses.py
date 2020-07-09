@@ -108,7 +108,7 @@ def quaternion_regularization_loss(quats: torch.tensor):
     device = quats.device
     num_cam_poses = quats.size(1)
 
-    if num_cam_poses == 0:
+    if num_cam_poses <= 1:
         return 0
 
     quat_perm = list(itertools.permutations(range(num_cam_poses), 2))

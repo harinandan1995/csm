@@ -124,6 +124,11 @@ class CSM(torch.nn.Module):
         rotation, translation, pred_poses, cam_idx, prob = self._get_camera_extrinsics(
             img_feats, scale, trans, quat)
 
+        if not self.use_gt_cam:
+            index = torch.argmax(prob)
+        else:
+            index = 0
+
         arti_verts = None
         if self.use_arti and epochs >= self.arti_epochs:
             arti_verts, arti_rotation, arti_translation = self.arti(
@@ -139,10 +144,11 @@ class CSM(torch.nn.Module):
 
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
-            sphere_points, rotation, translation, arti_verts)
+            sphere_points, rotation, translation, arti_verts, index)
 
-
-
+        # Render depth and mask of the template for the cam pose
+        pred_mask, pred_depth = self._render(
+            rotation, translation, meshes)
 
 
         # Render depth and mask of the template for the cam pose
@@ -164,6 +170,8 @@ class CSM(torch.nn.Module):
         if self.use_arti and epochs >= self.arti_epochs:
             out["pred_arti_translation"] = arti_translation
             arti_verts_s = arti_verts.detach().squeeze(0)
+            if len(arti_verts) > 1:
+                arti_verts_s = arti_verts_s[index, ...]
             out["arti"]=arti_verts_s
 
 
@@ -225,7 +233,7 @@ class CSM(torch.nn.Module):
 
         return rotation, translation, pred_poses, sample_idx, pred_prob
 
-    def _get_projected_positions_of_sphere_points(self, sphere_points, rotation, translation, arti_verts):
+    def _get_projected_positions_of_sphere_points(self, sphere_points, rotation, translation, arti_verts, index):
         """
         For the given points on unit sphere calculates the 3D coordinates on the mesh template
         and projects them back to image plane
@@ -271,8 +279,13 @@ class CSM(torch.nn.Module):
         xy = xy.permute(0, 1, 4, 2, 3)
         z = z.permute(0, 1, 4, 2, 3)
         uv = uv.permute(0, 3, 1, 2)
-        uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)[
-            :, 0, :, :, :].squeeze()
+
+        if not self.use_gt_cam and not self.use_sampled_cam and self.num_cam_poses > 1:
+            uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)
+            uv_3d = uv_3d[:, index, :, :, :].squeeze()
+        else:
+            uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)[
+                :, 0, :, :, :].squeeze()
 
         return xy, z, uv, uv_3d
 

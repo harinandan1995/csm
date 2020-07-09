@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch3d.structures import Meshes
 from pytorch3d.transforms import so3_exponential_map
-
+import numpy as np
 
 class TreeNode:
     def __init__(self, x):
@@ -68,6 +68,9 @@ class ArticulationPredictor(nn.Module):
 
         axis = axis.view(-1, 3)
         angle = angle.view(-1, 3)
+
+        #print(axis)
+        #print(angle / np.pi * 180)
 
         R = so3_exponential_map(angle * axis)
         R = R.view(batch_size, self._num_parts, 3, 3)
