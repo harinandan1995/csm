@@ -179,7 +179,7 @@ class DepthRenderer(nn.Module):
         image = self._shader(fragments, meshes_batch)
         depth_map = fragments.zbuf
 
-        return image, depth_map[..., 0]
+        return image[..., 3], depth_map[..., 0]
 
 
 class ColorRenderer(nn.Module):

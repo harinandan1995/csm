@@ -4,24 +4,22 @@ from torch.utils.data import DataLoader
 
 from src.data.cub_dataset import CubDataset
 from src.data.p3d_dataset import P3DDataset
+from src.data.imnet_dataset import ImnetDataset
 from src.nnutils.geometry import get_scaled_orthographic_projection
-from src.nnutils.rendering import DepthRenderer, ColorRenderer
+from src.nnutils.rendering import MaskAndDepthRenderer, ColorRenderer
 from src.utils.config import ConfigParser
 
-if __name__ == '__main__':
+def check_rendering():
 
     device = 'cuda:0'
 
-    config = ConfigParser('./config/p3d_train.yml', None).config
+    config = ConfigParser('./config/imnet_train.yml', None).config
 
-    dataset = P3DDataset(config.dataset)
-    data_loader = DataLoader(dataset=dataset,
-                             batch_size=1,
-                             shuffle=False,
-                             num_workers=0)
+    dataset = ImnetDataset(config.dataset, device)
+    data_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False, num_workers=0)
     template_mesh = dataset.template_mesh
 
-    renderer = DepthRenderer(device, image_size=256)
+    renderer = MaskAndDepthRenderer(template_mesh, image_size=256)
     color_renderer = ColorRenderer(template_mesh, image_size=1024)
 
     for i, data in enumerate(data_loader):
@@ -32,13 +30,12 @@ if __name__ == '__main__':
         trans = data['trans'].to(device, dtype=torch.float)
         quat = data['quat'].to(device, dtype=torch.float)
 
-        rotation, translation = get_scaled_orthographic_projection(scale, trans, quat, True)
+        rotation, translation = get_scaled_orthographic_projection(scale, trans, quat, False)
 
-        pred_mask, depth = renderer(template_mesh, rotation, translation)
-        depth[depth < 0] = depth.max() + 1
-        # depth = (depth - depth.min())/(depth.max()-depth.min())
-        # depth_norm = (depth - depth.mean(dim=1)) / depth.std()
-
+        pred_mask, pred_depth = renderer(rotation, translation)
+        print(pred_mask.size(), pred_depth.size())
+        pred_depth = pred_depth * torch.ceil(pred_mask) + (1 - torch.ceil(pred_mask)) * pred_depth.max()
+        
         color_image = color_renderer(rotation, translation)
 
         fig = plt.figure()
@@ -47,7 +44,7 @@ if __name__ == '__main__':
         plt.subplot(2, 2, 2)
         plt.imshow(color_image[0].cpu())
         plt.subplot(2, 2, 3)
-        plt.imshow(torch.flip(depth[0].cpu(), [0, 1]), cmap='gray')
+        plt.imshow(torch.flip(pred_depth[0].cpu(), [0, 1]), cmap='gray')
         plt.subplot(2, 2, 4)
         plt.imshow(torch.flip(pred_mask[0].cpu(), [0, 1]), cmap='gray', vmin=0, vmax=1)
 
@@ -55,3 +52,8 @@ if __name__ == '__main__':
 
         if i == 0:
             break
+
+
+if __name__ == '__main__':
+
+    check_rendering()
