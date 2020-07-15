@@ -61,8 +61,17 @@ class ArticulationPredictor(nn.Module):
         vec_rot = vec[..., 0:(self._num_rots+1)]
         vec_tran = vec[..., self._num_rots:].unsqueeze(-1)
         vec_rot = F.normalize(vec_rot, dim=-1)
-        angle = torch.atan2(
-            vec_rot[..., 1], vec_rot[..., 0]).unsqueeze(-1).repeat(1, 1, 3)
+        angle0 = torch.atan2(
+            vec_rot[..., 1], vec_rot[..., 0]).unsqueeze(-1)
+
+        ###############################################
+        angle0 = angle0.squeeze(0).squeeze(-1)
+        angle0 = torch.cat([torch.FloatTensor([0]).cuda(), angle0[1:]]).view(batch_size, self._num_parts, 1)
+        vec_tran = vec_tran.squeeze(0).squeeze(-1)
+        vec_tran = torch.cat([torch.FloatTensor([0,0,0]).cuda(), vec_tran[1:, ...]], dim=0).view(batch_size, self._num_parts, 3)
+        ###############################################
+
+        angle = angle0.repeat(1, 1, 3)
         self.axis.data = F.normalize(self.axis, dim=-1).data
         axis = self.axis.unsqueeze(0).repeat(batch_size, 1, 1)
 
@@ -74,7 +83,8 @@ class ArticulationPredictor(nn.Module):
 
         R = so3_exponential_map(angle * axis)
         R = R.view(batch_size, self._num_parts, 3, 3)
-        return R, vec_tran
+        angle0 = angle0.view(batch_size, self._num_parts, 1)
+        return R, vec_tran, angle0
 
 
 class Articulation(nn.Module):
@@ -137,7 +147,7 @@ class Articulation(nn.Module):
             P - the  number of parts
         :return: A tuple (verts, loss)
             - verts:[N x K x 3] The corrdinate of vertices for articulation prediction.
-            - R: [N x P x 3 x 3] The corresponding part rotation
+            - angle: [N x P] The corresponding part rotation
             - t_net:[N x P x 3] The corresponding part translation.
         """
 
@@ -145,12 +155,12 @@ class Articulation(nn.Module):
         x = x.view(-1, self._num_feats)
         batch_size = len(x)
 
-        R, t = self._predictor(x)
+        R, t, angle = self._predictor(x)
 
         # TODO: Add translation for future
-        if True:
-            t = torch.zeros(
-                [batch_size, self._num_parts, 3, 1]).to(self.device)
+        #if True:
+        #    t = torch.zeros(
+        #        [batch_size, self._num_parts, 3, 1]).to(self.device)
 
         t_net = t
 
@@ -203,9 +213,10 @@ class Articulation(nn.Module):
 
         arti_verts = arti_verts.squeeze(-1)
         t_net = t_net.squeeze(-1)
+        angle.squeeze(-1)
         #loss = t_net.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
 
-        return arti_verts, R, t_net
+        return arti_verts, angle, t_net
 
 
 class MultiArticulation(nn.Module):
@@ -232,6 +243,7 @@ class MultiArticulation(nn.Module):
         :param index_list: [N] list of the index indicates which articulation is used
         :return: A tuple (verts, loss)
             - pred_verts:[N x 1 x K x 3] or [N x H x K x 3] he corrdinate of vertices for articulation prediction.for i-th camera
+            - pred_r: [N x 1 x P] or [N x H x P]
             - pred_t:[N x 1 x P x 3]  or [N x H x P x 3]The corresponding loss for translation.for i-th camera
 
         """

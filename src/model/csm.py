@@ -8,7 +8,10 @@ from src.model.uv_to_3d import UVto3D
 from src.nnutils.geometry import get_scaled_orthographic_projection, convert_3d_to_uv_coordinates
 from src.nnutils.rendering import MaskRenderer, DepthRenderer, MaskAndDepthRenderer
 from src.nnutils.blocks import get_encoder
-
+import numpy as np
+from pytorch3d.transforms import (euler_angles_to_matrix,
+                                  matrix_to_euler_angles, matrix_to_quaternion,
+                                  quaternion_multiply, quaternion_to_matrix)
 
 class CSM(torch.nn.Module):
     """
@@ -131,10 +134,20 @@ class CSM(torch.nn.Module):
 
         arti_verts = None
         if self.use_arti and epochs >= self.arti_epochs:
-            arti_verts, arti_rotation, arti_translation = self.arti(
+            arti_verts, arti_angle, arti_translation = self.arti(
                 img_feats, self.use_gt_cam, self.use_sampled_cam, cam_idx)
 
+        #print("\n")
+        #print(matrix_to_euler_angles(rotation.view(3,3), "XYZ"))
+        #print("\n")
+        #print(translation.view(3))
+        #print("\n")
+        #quat = torch.FloatTensor([0.5, 0.5, 0.5, 0.5]).cuda()
+        #rotation = quaternion_to_matrix(quat).unsqueeze(0).unsqueeze(0)
 
+        euler = euler_angles_to_matrix(torch.FloatTensor([0, -np.pi / 2, np.pi / 2]).cuda(), "XYZ")
+        rotation = euler.unsqueeze(0).unsqueeze(0)
+        translation = torch.FloatTensor([0, -0.1370, 5.0000]).unsqueeze(0).unsqueeze(0).cuda()
         # NOTE: we need N articulated meshes
         # The vertices output is [B x 1 x M(vertices number) x 3 if use_gt_cam or use_sampled_cam, otherwise it is [B x H x M x 3]
         if self.use_arti and epochs >= self.arti_epochs:
@@ -145,11 +158,6 @@ class CSM(torch.nn.Module):
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
             sphere_points, rotation, translation, arti_verts, index)
-
-        # Render depth and mask of the template for the cam pose
-        pred_mask, pred_depth = self._render(
-            rotation, translation, meshes)
-
 
         # Render depth and mask of the template for the cam pose
         pred_mask, pred_depth = self._render(
@@ -169,6 +177,7 @@ class CSM(torch.nn.Module):
 
         if self.use_arti and epochs >= self.arti_epochs:
             out["pred_arti_translation"] = arti_translation
+            out["pred_arti_angle"] = arti_angle
             arti_verts_s = arti_verts.detach().squeeze(0)
             if len(arti_verts) > 1:
                 arti_verts_s = arti_verts_s[index, ...]
@@ -217,12 +226,12 @@ class CSM(torch.nn.Module):
             if self.use_sampled_cam:
                 pred_scale, pred_trans, pred_quat, pred_prob = cam_pred
                 rotation, translation = get_scaled_orthographic_projection(
-                    pred_scale, pred_trans, pred_quat)
+                    pred_scale, pred_trans, pred_quat, True)
             else:
                 pred_scale, pred_trans, pred_quat, pred_prob = pred_poses
                 rotation, translation = get_scaled_orthographic_projection(
                     pred_scale.view(-1), pred_trans.view(-1,
-                                                         2), pred_quat.view(-1, 4)
+                                                         2), pred_quat.view(-1, 4), True
                 )
                 rotation = rotation.view(batch_size, -1, 3, 3)
                 translation = translation.view(batch_size, -1, 3)
@@ -230,6 +239,7 @@ class CSM(torch.nn.Module):
         if self.use_gt_cam or self.use_sampled_cam:
             rotation = rotation.unsqueeze(1)
             translation = translation.unsqueeze(1)
+
 
         return rotation, translation, pred_poses, sample_idx, pred_prob
 

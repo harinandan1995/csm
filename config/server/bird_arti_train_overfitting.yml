@@ -32,7 +32,7 @@ train:
   arti_epochs: 30
   log:
     image_summary_step: 50
-    image_epoch: 1
+    image_epoch: 10
   loss:
     geometric: 1
     visibility: 1
