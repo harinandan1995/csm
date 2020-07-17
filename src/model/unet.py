@@ -35,6 +35,22 @@ def conv2d(batch_norm, in_planes, out_planes, kernel_size=3, stride=1):
         )
 
 
+def bilinear_init(kernel_size=4):
+    # Following Caffe's BilinearUpsamplingFiller
+    # https://github.com/BVLC/caffe/pull/2213/files
+    import numpy as np
+    width = kernel_size
+    height = kernel_size
+    f = int(np.ceil(width / 2.))
+    cc = (2 * f - 1 - f % 2) / (2.*f)
+    weights = torch.zeros((height, width))
+    for y in range(height):
+        for x in range(width):
+            weights[y, x] = (1 - np.abs(x / f - cc)) * (1 - np.abs(y / f - cc))
+
+    return weights
+
+
 def net_init(net):
     for m in net.modules():
         if isinstance(m, nn.Linear):
@@ -71,6 +87,7 @@ def net_init(net):
         elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm3d):
             m.weight.data.fill_(1)
             m.bias.data.zero_()
+
 
 #------ UNet style generator ------#
 #----------------------------------#
