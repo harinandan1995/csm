@@ -1,5 +1,6 @@
 import torch
 from pytorch3d.structures import Meshes
+from pytorch3d.renderer import OpenGLOrthographicCameras
 
 from src.model.cam_predictor import CameraPredictor, MultiCameraPredictor
 from src.model.unet import UNet
@@ -168,11 +169,10 @@ class CSM(torch.nn.Module):
         uv_3d = self.uv_to_3d(uv_flatten).view(batch_size, 1, -1, 3)
         uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(batch_size*num_poses, -1, 3)
 
-        xyz = torch.bmm(uv_3d, rotation.view(-1, 3, 3)) + translation.view(-1, 1, 3)
-        xyz = xyz.view(batch_size, num_poses, height, width, 3)
-
-        xy = xyz[:, :, :, :, :2]
-        z = xyz[:, :, :, :, 2:]
+        cameras = OpenGLOrthographicCameras(device=sphere_points.device, R=rotation.view(-1, 3, 3), T=translation.view(-1, 3))
+        xyz_cam = cameras.get_world_to_view_transform().transform_points(uv_3d)
+        z = xyz_cam[:, :, 2:].view(batch_size, num_poses, height, width, 1)
+        xy = cameras.transform_points(uv_3d)[:, :, :2].view(batch_size, num_poses, height, width, 2)
 
         xy = xy.permute(0, 1, 4, 2, 3)
         z = z.permute(0, 1, 4, 2, 3)
