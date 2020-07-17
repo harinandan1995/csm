@@ -32,7 +32,7 @@ def geometric_cycle_consistency_loss(gt_2d_pos_grid, pred_positions, mask, coeff
 
     loss = coeffs * torch.sub(gt, pred).pow(2)
     
-    if reduction is 'mean':
+    if reduction == 'mean':
         return loss.mean()
     else:
         return loss
@@ -64,7 +64,7 @@ def visibility_constraint_loss(pred_depths, pred_z, mask, coeffs=None, reduction
     extended_mask = mask.unsqueeze(1)
     loss = torch.nn.functional.relu(torch.sub(pred_z, pred_depths)).pow(2) * extended_mask * coeffs
 
-    if reduction is 'mean':
+    if reduction == 'mean':
         return loss.mean()
     else:
         return loss
@@ -91,7 +91,7 @@ def mask_reprojection_loss(mask, pred_masks, coeffs=None, reduction='mean'):
     extended_mask = mask.unsqueeze(1)
     loss = coeffs * torch.sub(extended_mask, pred_masks).pow(2)
 
-    if reduction is 'mean':
+    if reduction == 'mean':
         return loss.mean()
     else:
         return loss
@@ -117,10 +117,15 @@ def quaternion_regularization_loss(quats: torch.tensor):
     quats_x = torch.gather(quats, dim=1, index=quat_perm[0].view(1, -1, 1).repeat(len(quats), 1, 4))
     quats_y = torch.gather(quats, dim=1, index=quat_perm[1].view(1, -1, 1).repeat(len(quats), 1, 4))
     inter_quats = hamilton_product(quats_x, quat_conj(quats_y))
+    
     quatAng = quat2ang(inter_quats).view(len(inter_quats), num_cam_poses - 1, -1)
-    quatAng = -1 * torch.nn.functional.max_pool1d(
-        -1 * quatAng.permute(0, 2, 1), num_cam_poses - 1, stride=1).squeeze()
-    return (np.pi - quatAng).mean()
+    quatAng = torch.abs(quatAng - np.pi)
+    quatAng = torch.nn.functional.max_pool1d(quatAng.permute(0, 2, 1), num_cam_poses - 1, stride=1)
+    
+    # quatAng = -1 * torch.nn.functional.max_pool1d(
+    #     -1 * quatAng.permute(0, 2, 1), num_cam_poses - 1, stride=1).squeeze()
+
+    return quatAng.mean()
 
 
 def diverse_loss(probs):
