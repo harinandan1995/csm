@@ -230,8 +230,11 @@ class CSMTrainer(ITrainer):
             self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2, keepdim=True)
         
         loss_values = loss_values.view(-1, 1, loss_values.size(-2), loss_values.size(-2))
-
-        loss_values = (loss_values - loss_values.min())/(loss_values.max()-loss_values.min())
+        loss_min, _ = loss_values.min(dim=0, keepdim=True)
+        loss_max, _ = loss_values.max(dim=0, keepdim=True)
+        
+        loss_values = (loss_values - loss_min)/(loss_max-loss_min)
+        
         self.summary_writer.add_images('%d/pred/geometric' % epoch, loss_values, sum_step)
 
     def _add_input_vis(self, img, mask, epoch, sum_step):
