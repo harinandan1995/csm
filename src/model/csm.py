@@ -46,7 +46,7 @@ class CSM(torch.nn.Module):
         """
         super(CSM, self).__init__()
 
-        self.unet = UNet(4, 3)
+        self.unet = UNet(4, 3, num_downs=5)
         self.uv_to_3d = UVto3D(mean_shape)
         self.renderer = MaskAndDepthRenderer(meshes=template_mesh)
 
