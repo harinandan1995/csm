@@ -33,6 +33,7 @@ train:
   log:
     image_summary_step: 50
     image_epoch: 50
+    arti_epoch: 200
   loss:
     geometric: 1
     visibility: 10
@@ -40,6 +41,7 @@ train:
     diverse: 0.05
     quat: 0.1
     arti: 10
+    arti_angle: 0.1
   optim:
     lr: 0.0001
     beta1: 0.9
