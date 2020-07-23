@@ -1,6 +1,6 @@
 import json
 
-from src.estimators.kp_tester import KPTransferTester
+from src.estimators.kp_tester_v1 import KPTransferTester
 from src.utils.config import ConfigParser
 
 

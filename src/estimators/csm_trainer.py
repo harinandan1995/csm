@@ -2,6 +2,7 @@ import os.path as osp
 
 import numpy as np
 import torch.utils.data
+from pytorch3d.renderer import OpenGLOrthographicCameras
 
 from src.data.cub_dataset import CubDataset
 from src.data.imnet_dataset import ImnetDataset
@@ -209,6 +210,8 @@ class CSMTrainer(ITrainer):
         pred_masks = out['pred_masks']
         pred_depths = out['pred_depths']
         pred_positions = out['pred_positions']
+        rotation = out["rotation"]
+        translation = out["translation"]
 
         img = batch['img'].to(self.device, dtype=torch.float)
         mask = batch['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
@@ -216,11 +219,42 @@ class CSMTrainer(ITrainer):
         sum_step = int(step / self.config.log.image_summary_step)
 
         if step % self.config.log.image_summary_step == 0 and epoch % self.config.log.image_epoch == 0:
-
+            
+            # self._add_kp_summaries(rotation, translation, batch, epoch, sum_step)
             self._add_loss_vis(pred_positions, mask, epoch, sum_step)
             self._add_input_vis(img, mask, epoch, sum_step)
             self._add_pred_vis(uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step)
-            
+    
+    def _add_kp_summaries(self, rotation, translation, batch, epoch, sum_step):
+
+        img = batch['img'].to(self.device, dtype=torch.float)
+        camera = OpenGLOrthographicCameras(device=self.device, R=rotation.view(-1, 3, 3), T=translation.view(-1, 3))
+
+        kps = batch['kp'].to(self.device, dtype=torch.float)
+        kps[:, :, :2] = ((kps[:, :, :2] + 1)/2) * 255
+        kps = kps.to(torch.int32)
+        
+        kp_img = draw_key_points(img, kps, self.key_point_colors)
+        self.summary_writer.add_images('%d/kp/kp' % epoch, kp_img, sum_step)
+        
+        # Plot the key points directly using the 3D keypoints and projecting them onto image plane
+        kp_3d = torch.from_numpy(self.dataset.kp_3d).to(self.device, dtype=torch.float32).unsqueeze(0)
+        xyz = camera.transform_points(kp_3d)
+        xy = (((xyz[:, :, :2] + 1)/2) * 255).to(torch.int32)
+        kp_xy = torch.cat((xy, kps[:, :, 2:]), dim=2)
+        kp3d_to_image = draw_key_points(img, kp_xy, self.key_point_colors)
+        self.summary_writer.add_images('%d/kp/kp3d_to_image' % epoch, kp3d_to_image, sum_step)
+        
+        # Draw key points by converting 3D kps to uv values and then back to 3D
+        kp_uv = convert_3d_to_uv_coordinates(kp_3d)
+        uv_flatten = kp_uv.view(-1, 2)
+        uv_3d = self.model.uv_to_3d(uv_flatten).view(1, -1, 3)
+        xyz = camera.transform_points(uv_3d)
+        xy = (((xyz[:, :, :2] + 1) / 2) * 255).to(torch.int32)
+        kp_xy = torch.cat((xy, kps[:, :, 2:]), dim=2)
+        kp3d_to_uv_to_3d_to_image = draw_key_points(img, kp_xy, self.key_point_colors)
+        self.summary_writer.add_images('%d/kp/kp3d_to_uv_to_3d_to_image' % epoch, kp3d_to_uv_to_3d_to_image, sum_step)
+           
     def _add_loss_vis(self, pred_positions, mask, epoch, sum_step):
         """
         Add loss visualizations to the tensorboard summaries

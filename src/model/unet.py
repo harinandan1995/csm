@@ -111,7 +111,7 @@ class UNet(nn.Module):
 
         # construct unet structure
         all_blocks = []
-        self.inner_most_block = unet_block = UnetSkipConnectionConcatBlock(ngf_max, ngf_max, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
+        unet_block = UnetSkipConnectionConcatBlock(ngf_max, ngf_max, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
         all_blocks.append(unet_block)
 
 

@@ -105,6 +105,8 @@ class CSM(torch.nn.Module):
             "pred_depths": torch.flip(pred_depth, (-1, -2)),
             "pred_masks": torch.flip(pred_mask, (-1, -2)),
             "pred_z": pred_z,
+            "rotation": rotation,
+            "translation": translation,
             "uv_3d": uv_3d,
             "uv": uv
         }

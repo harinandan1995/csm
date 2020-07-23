@@ -8,6 +8,8 @@ from src.data.imnet_dataset import ImnetDataset
 from src.data.p3d_dataset import P3DDataset
 from src.estimators.tester import ITester
 from src.model.csm import CSM
+from src.model.unet import UNet
+from src.model.uv_to_3d import UVto3D
 from src.nnutils.color_transform import draw_key_points, sample_uv_contour
 from src.nnutils.metrics import calculate_correct_key_points
 from src.nnutils.geometry import convert_3d_to_uv_coordinates
@@ -23,6 +25,7 @@ class KPTransferTester(ITester):
         super(KPTransferTester, self).__init__(config.test)
         self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
         self.num_kps = len(self.dataset.kp_names)
+        self.uv_to_3d = UVto3D(self.dataset.mean_shape).to(self.device)
 
         self.acc = []
         for alpha in self.config.alpha:
@@ -39,13 +42,10 @@ class KPTransferTester(ITester):
 
         height, width = src_img.size(-2), src_img.size(-1)
 
-        src_pred_out = self._call_model(src)
-        tar_pred_out = self._call_model(tar)
+        src_uv, _ = self._call_model(src)
+        tar_uv, _ = self._call_model(tar)
 
-        src_uv = src_pred_out['uv']
-        tar_uv = tar_pred_out['uv']
-
-        self._add_uv_summaries(src_pred_out, tar_pred_out, src, tar, step)
+        self._add_uv_summaries(src_uv, tar_uv, src, tar, step)
 
         src_kp = src['kp'].to(self.device, dtype=torch.float)
         tar_kp = tar['kp'].to(self.device, dtype=torch.float)
@@ -80,13 +80,16 @@ class KPTransferTester(ITester):
 
         img = data['img'].to(self.device, dtype=torch.float)
         mask = data['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
-        scale = data['scale'].to(self.device, dtype=torch.float)
-        trans = data['trans'].to(self.device, dtype=torch.float)
-        quat = data['quat'].to(self.device, dtype=torch.float)
+        
+        unet_output = self.model(torch.cat([img, mask], 1))
+        uv_map  = unet_output[:, 0:3, :, :]
+        uv_map = torch.tanh(uv_map) * (1 - 1E-6)
+        uv_map = torch.nn.functional.normalize(uv_map, dim=1, eps=1E-6)
+        uv_map = convert_3d_to_uv_coordinates(uv_map.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
 
-        pred_out = self.model(img, mask, scale, trans, quat)
+        mask = torch.sigmoid(unet_output[:, 3:, :, :])
 
-        return pred_out
+        return uv_map, mask
 
     @staticmethod
     def _convert_to_int_indices(float_indices):
@@ -99,43 +102,6 @@ class KPTransferTester(ITester):
         float_indices[:, :, :2] = (255 * (float_indices[:, :, :2] + 1) // 2).to(torch.int32)
 
         return float_indices
-
-    def _find_target_kps(self, src_kp, src_uv, tar_uv, tar_mask):
-        """
-        For a given source kps using the uv values of source key points and uv values of
-        all the pixels of target image finds the corresponding target kps by finding the
-        closest pixel when transformed to 3D
-
-        :param src_kp: [B X KP X 2] indices of the key points on the source image [-1-1]
-        :param src_uv: [B X 2 X H X W] uv values of the source image
-        :param tar_uv: [B X 2 X H X W] uv values of the target image
-        :param tar_mask: [B X 1 X H X W] mask for the target image.
-        :return: [B X KP X 2] indices of the key points on the target image[0-255]
-        """
-
-        batch_size = src_uv.size(0)
-        height = src_uv.size(2)
-        width = src_uv.size(3)
-
-        src_kp_uv = torch.nn.functional.grid_sample(src_uv, src_kp[:, :, :2].view(batch_size, -1, 1, 2))
-        src_kp_uv = src_kp_uv.permute(0, 2, 1, 3).squeeze()
-
-        src_uv_3d = self.model.uv_to_3d(src_kp_uv.reshape(-1, 2)).view(batch_size, -1, 1, 3)
-        tar_uv_3d = self.model.uv_to_3d(tar_uv.reshape(-1, 2)).view(batch_size, 1, -1, 3)
-
-        tar_uv_3d = tar_uv_3d.repeat(1, src_uv_3d.size(1), 1, 1)
-        src_uv_3d = src_uv_3d.repeat(1, 1, tar_uv_3d.size(2), 1)
-
-        kp_dist = torch.pow((tar_uv_3d - src_uv_3d) * 10, 2)
-        kp_dist = torch.sum(kp_dist, dim=-1)
-        kp_mask = 1 - tar_mask.reshape(batch_size, 1, -1).repeat(1, self.num_kps, 1)
-        kp_dist = kp_dist * (1 - kp_mask) + kp_mask * torch.max(kp_dist) * 10
-
-        tar_kp = unravel_index(torch.argmin(kp_dist, 2), (1, height, width, 1))
-        tar_kp = tar_kp.permute(0, 2, 1)[:, :, 1:3]
-        tar_kp = torch.cat((tar_kp[:, :, 1:], tar_kp[:, :, :1]), dim=-1)
-
-        return tar_kp
 
     def map_kp_img1_to_img2(self, kps1, kps2, uv_map1, uv_map2, mask1, mask2):
 
@@ -152,8 +118,8 @@ class KPTransferTester(ITester):
         
         kps1_uv = uv_map1[kps1[:, 1], kps1[:, 0], :]
 
-        kps1_3d = self.model.uv_to_3d(kps1_uv).view(1, 1, -1 ,3)
-        uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2)).view(1, img_H, img_W, 3)
+        kps1_3d = self.uv_to_3d(kps1_uv).view(1, 1, -1 ,3)
+        uv_points3d = self.uv_to_3d(uv_map2.reshape(-1, 2)).view(1, img_H, img_W, 3)
 
         # kps1_3d = self.uv2points.forward()
         # uv_map2_3d = self.uv2points.forward()
@@ -168,34 +134,42 @@ class KPTransferTester(ITester):
         kp_transfer_error = torch.norm((transfer_kps.float() - kps2[:, 0:2]), dim=1)
         return transfer_kps
 
-    def _test_start_call(self):
+    def _find_target_kps(self, src_kp, src_uv, tar_uv, tar_mask):
+        """
+        For a given source kps using the uv values of source key points and uv values of
+        all the pixels of target image finds the corresponding target kps by finding the
+        closest pixel when transformed to 3D
 
-        return
+        :param src_kp: [B X KP X 2] indices of the key points on the source image [-1 to 1]
+        :param src_uv: [B X 2 X H X W] uv values of the source image
+        :param tar_uv: [B X 2 X H X W] uv values of the target image
+        :param tar_mask: [B X 1 X H X W] mask for the target image.
+        :return: [B X KP X 2] indices of the key points on the target image[0-255]
+        """
 
-    def _test_end_call(self):
+        batch_size = src_uv.size(0)
+        height = src_uv.size(2)
+        width = src_uv.size(3)
 
-        return
+        src_kp_uv = torch.nn.functional.grid_sample(src_uv, src_kp[:, :, :2].flip(-1).view(batch_size, -1, 1, 2))
+        src_kp_uv = src_kp_uv.permute(0, 2, 1, 3).squeeze()
 
-    def _load_dataset(self) -> KPDataset:
+        src_uv_3d = self.uv_to_3d(src_kp_uv.reshape(-1, 2)).view(batch_size, -1, 1, 3)
+        tar_uv_3d = self.uv_to_3d(tar_uv.reshape(-1, 2)).view(batch_size, 1, -1, 3)
 
-        if self.data_cfg.category == 'car':
-            dataset = P3DDataset(self.data_cfg, self.device)
-        elif self.data_cfg.category == 'bird':
-            dataset = CubDataset(self.data_cfg, self.device)
-        else:
-            dataset = ImnetDataset(self.data_cfg, self.device)
+        tar_uv_3d = tar_uv_3d.repeat(1, src_uv_3d.size(1), 1, 1)
+        src_uv_3d = src_uv_3d.repeat(1, 1, tar_uv_3d.size(2), 1)
 
-        return KPDataset(dataset, self.data_cfg.num_pairs)
+        kp_dist = torch.pow((tar_uv_3d - src_uv_3d) * 10, 2)
+        kp_dist = torch.sum(kp_dist, dim=-1)
+        kp_mask = 1 - tar_mask.reshape(batch_size, 1, -1).repeat(1, self.num_kps, 1)
+        kp_dist = kp_dist * (1 - kp_mask) + kp_mask * torch.max(kp_dist) * 10
 
-    def _get_model(self) -> CSM:
+        tar_kp = unravel_index(torch.argmin(kp_dist, 2), (1, height, width, 1))
+        tar_kp = tar_kp.permute(0, 2, 1)[:, :, 1:3]
+        tar_kp = torch.cat((tar_kp[:, :, 1:], tar_kp[:, :, :1]), dim=-1)
 
-        model = CSM(self.dataset.template_mesh,
-                    self.dataset.mean_shape,
-                    self.config.use_gt_cam,
-                    self.config.num_cam_poses,
-                    self.config.use_sampled_cam).to(self.device)
-
-        return model
+        return tar_kp
 
     def _add_kp_summaries(self, src_kp, tar_kp, tar_pred_kp, src_img, tar_img, step, merge=True):
         """
@@ -226,19 +200,17 @@ class KPTransferTester(ITester):
             self.summary_writer.add_images('tar/orig', tar_kp_img, step)
             self.summary_writer.add_images('tar/pred', tar_pred_kp_img, step)
 
-    def _add_uv_summaries(self, src_pred_out, tar_pred_out, src, tar, step, merge=True):
+    def _add_uv_summaries(self, src_uv, tar_uv, src, tar, step, merge=True):
         
         if not self.config.add_summaries:
             return
 
         src_img = src['img'].to(self.device, dtype=torch.float)
         src_mask = src['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
-        src_uv = src_pred_out['uv']
         src_uv_color, src_uv_blend = sample_uv_contour(src_img, src_uv.permute(0, 2, 3, 1), self.dataset.texture_map, src_mask)
 
         tar_img = tar['img'].to(self.device, dtype=torch.float)
         tar_mask = tar['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
-        tar_uv = tar_pred_out['uv']
         tar_uv_color, tar_uv_blend = sample_uv_contour(tar_img, tar_uv.permute(0, 2, 3, 1), self.dataset.texture_map, tar_mask)
 
         if merge:
@@ -251,3 +223,36 @@ class KPTransferTester(ITester):
             self.summary_writer.add_images('src/uv', src_uv_color * src_mask, step)
             self.summary_writer.add_images('tar/uv_blend', tar_uv_blend, step)
             self.summary_writer.add_images('tar/uv', tar_uv_color * tar_mask, step)
+
+    def _test_start_call(self):
+
+        return
+
+    def _test_end_call(self):
+
+        return
+
+    def _load_dataset(self) -> KPDataset:
+
+        if self.data_cfg.category == 'car':
+            dataset = P3DDataset(self.data_cfg, self.device)
+        elif self.data_cfg.category == 'bird':
+            dataset = CubDataset(self.data_cfg, self.device)
+        else:
+            dataset = ImnetDataset(self.data_cfg, self.device)
+
+        return KPDataset(dataset, self.data_cfg.num_pairs)
+
+    def _get_model(self) -> CSM:
+
+        model = UNet(4, (3), 5).to(self.device)
+
+        return model
+
+    def _load_model(self, ckpt):
+
+        params = torch.load('/mnt/raid/csmteam/out/2020-07-17/085508/checkpoints/model_021445_195')
+        
+        for k, v in params.items():
+            if "unet.model" in k:
+                self.model.state_dict()[k.replace('unet.', '')].copy_(v)
