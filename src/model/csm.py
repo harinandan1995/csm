@@ -176,7 +176,7 @@ class CSM(torch.nn.Module):
         z = xyz_cam[:, :, 2:].view(batch_size, num_poses, height, width, 1)
         xy = cameras.transform_points(uv_3d)[:, :, :2].view(batch_size, num_poses, height, width, 2)
 
-        xy = xy.permute(0, 1, 4, 2, 3)
+        xy = xy.permute(0, 1, 4, 2, 3).flip(2)
         z = z.permute(0, 1, 4, 2, 3)
         uv = uv.permute(0, 3, 1, 2)
         uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)[:, 0, :, :, :].squeeze()
