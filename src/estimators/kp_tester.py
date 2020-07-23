@@ -8,10 +8,13 @@ from src.data.imnet_dataset import ImnetDataset
 from src.data.p3d_dataset import P3DDataset
 from src.estimators.tester import ITester
 from src.model.csm import CSM
+from src.model.unet import UNet
+from src.model.uv_to_3d import UVto3D
 from src.nnutils.color_transform import draw_key_points, sample_uv_contour
 from src.nnutils.metrics import calculate_correct_key_points
 from src.nnutils.geometry import convert_3d_to_uv_coordinates
 from src.utils.config import ConfigParser
+from src.nnutils import pck
 
 
 class KPTransferTester(ITester):
@@ -23,6 +26,9 @@ class KPTransferTester(ITester):
         super(KPTransferTester, self).__init__(config.test)
         self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
         self.num_kps = len(self.dataset.kp_names)
+        self.kp_names = self.dataset.kp_names
+
+        self.stats = {'kps1': [], 'kps2': [], 'transfer': [], 'kps_err': [], 'pair': [], }
 
         self.acc = []
         for alpha in self.config.alpha:
@@ -30,37 +36,43 @@ class KPTransferTester(ITester):
 
     def _batch_call(self, step, batch_data):
 
-        src, tar = batch_data
+        batch1, batch2 = batch_data
 
-        src_img = src['img'].to(self.device, dtype=torch.float)
-        src_mask = src['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
-        tar_img = tar['img'].to(self.device, dtype=torch.float)
-        tar_mask = tar['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
+        transfer_kps12, error_kps12, transfer_kps21, error_kps21, kps1, kps2 = self._evaluate(batch1, batch2, step)
 
-        height, width = src_img.size(-2), src_img.size(-1)
-
-        src_pred_out = self._call_model(src)
-        tar_pred_out = self._call_model(tar)
-
-        src_uv = src_pred_out['uv']
-        tar_uv = tar_pred_out['uv']
-
-        self._add_uv_summaries(src_pred_out, tar_pred_out, src, tar, step)
-
-        src_kp = src['kp'].to(self.device, dtype=torch.float)
-        tar_kp = tar['kp'].to(self.device, dtype=torch.float)
-
-        tar_pred_kp = self._find_target_kps(src_kp, src_uv, tar_uv, tar_mask)
-        src_kp = self._convert_to_int_indices(src_kp)
-        tar_kp = self._convert_to_int_indices(tar_kp)
-        tar_pred_kp = self.map_kp_img1_to_img2(src_kp, tar_kp, src_uv, tar_uv, src_mask, tar_mask).unsqueeze(0)
+        kp_mask = kps1[:, 2:] * kps2[:, 2:]
         
-        tar_pred_kp = torch.cat((tar_pred_kp, src_kp[:, :, 2:].to(torch.int64)), dim=2)
-        out = self._calculate_acc(src_kp, tar_kp, tar_pred_kp, height, width)
+        kp_12 = torch.cat((transfer_kps12, kp_mask), dim=1)
+        kp_21 = torch.cat((transfer_kps21, kp_mask), dim=1)
 
-        self._add_kp_summaries(src_kp, tar_kp, tar_pred_kp, src_img, tar_img, step)
+        img1 = batch1['img'].to(self.device, dtype=torch.float)
+        img2 = batch2['img'].to(self.device, dtype=torch.float)
+        
+        self._add_kp_summaries(kps1, kps2, kp_12, kp_21, img1, img2, step)
 
-        return out
+        self.stats['transfer'].append(self._to_numpy(transfer_kps12))
+        self.stats['kps_err'].append(self._to_numpy(error_kps12))
+        self.stats['kps1'].append(self._to_numpy(kps1))
+        self.stats['kps2'].append(self._to_numpy(kps2))
+
+        self.stats['transfer'].append(self._to_numpy(transfer_kps21))
+        self.stats['kps_err'].append(self._to_numpy(error_kps21))
+        self.stats['kps1'].append(self._to_numpy(kps2))
+        self.stats['kps2'].append(self._to_numpy(kps1))
+
+        return {}
+
+    def _test_end_call(self):
+
+        n_iter = len(self.dataset)
+
+        self.stats['kps1'] = np.stack(self.stats['kps1'])
+        self.stats['kps2'] = np.stack(self.stats['kps2'])
+        self.stats['transfer'] = np.stack(self.stats['transfer'])
+        self.stats['kps_err'] = np.stack(self.stats['kps_err'])
+
+        dist_thresholds = [1e-4, 1e-3,0.25*1e-2, 0.5*1e-2, 0.75*1e-2, 1E-2, 1E-1, 0.2, 0.3, 0.4, 0.5, 0.6, 10]
+        pck.run_evaluation(self.stats, n_iter, self.out_dir, self.data_cfg.img_size, self.kp_names, dist_thresholds)
 
     def _calculate_acc(self, src_kp, tar_kp, tar_pred_kp, height, width):
 
@@ -100,50 +112,35 @@ class KPTransferTester(ITester):
 
         return float_indices
 
-    def _find_target_kps(self, src_kp, src_uv, tar_uv, tar_mask):
-        """
-        For a given source kps using the uv values of source key points and uv values of
-        all the pixels of target image finds the corresponding target kps by finding the
-        closest pixel when transformed to 3D
+    def _evaluate(self, batch1, batch2, step):
 
-        :param src_kp: [B X KP X 2] indices of the key points on the source image [-1-1]
-        :param src_uv: [B X 2 X H X W] uv values of the source image
-        :param tar_uv: [B X 2 X H X W] uv values of the target image
-        :param tar_mask: [B X 1 X H X W] mask for the target image.
-        :return: [B X KP X 2] indices of the key points on the target image[0-255]
-        """
+        mask1 = batch1['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
+        mask2 = batch2['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
 
-        batch_size = src_uv.size(0)
-        height = src_uv.size(2)
-        width = src_uv.size(3)
+        pred_out1 = self._call_model(batch1)
+        pred_out2 = self._call_model(batch2)
 
-        src_kp_uv = torch.nn.functional.grid_sample(src_uv, src_kp[:, :, :2].view(batch_size, -1, 1, 2))
-        src_kp_uv = src_kp_uv.permute(0, 2, 1, 3).squeeze()
+        uv1 = pred_out1['uv']
+        uv2 = pred_out2['uv']
 
-        src_uv_3d = self.model.uv_to_3d(src_kp_uv.reshape(-1, 2)).view(batch_size, -1, 1, 3)
-        tar_uv_3d = self.model.uv_to_3d(tar_uv.reshape(-1, 2)).view(batch_size, 1, -1, 3)
+        self._add_uv_summaries(pred_out1, pred_out2, batch1, batch2, step)
 
-        tar_uv_3d = tar_uv_3d.repeat(1, src_uv_3d.size(1), 1, 1)
-        src_uv_3d = src_uv_3d.repeat(1, 1, tar_uv_3d.size(2), 1)
+        kps1 = self._convert_to_int_indices(batch1['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
+        kps2 = self._convert_to_int_indices(batch2['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
 
-        kp_dist = torch.pow((tar_uv_3d - src_uv_3d) * 10, 2)
-        kp_dist = torch.sum(kp_dist, dim=-1)
-        kp_mask = 1 - tar_mask.reshape(batch_size, 1, -1).repeat(1, self.num_kps, 1)
-        kp_dist = kp_dist * (1 - kp_mask) + kp_mask * torch.max(kp_dist) * 10
+        transfer_kps12, error_kps12 = self.map_kp_img1_to_img2(kps1, kps2, uv1, uv2, mask1, mask2)
+        transfer_kps21, error_kps21 = self.map_kp_img1_to_img2(kps2, kps1, uv2, uv1, mask2, mask1)
+        
+        return transfer_kps12, error_kps12, transfer_kps21, error_kps21, kps1, kps2
 
-        tar_kp = unravel_index(torch.argmin(kp_dist, 2), (1, height, width, 1))
-        tar_kp = tar_kp.permute(0, 2, 1)[:, :, 1:3]
-        tar_kp = torch.cat((tar_kp[:, :, 1:], tar_kp[:, :, :1]), dim=-1)
+    def _to_numpy(self, tensor):
 
-        return tar_kp
+        return tensor.data.cpu().numpy()
 
     def map_kp_img1_to_img2(self, kps1, kps2, uv_map1, uv_map2, mask1, mask2):
 
-        kps1 = kps1.view(-1 , 3)
-        kps2 = kps2.view(-1 , 3)
-
-        kps1 = kps1.long()
-        kps1_vis = kps1[:, 2] > 0
+        kp_mask = kps1[:, 2] * kps2[:, 2]
+        kps1_vis = kps1[:, 2]
         img_H = uv_map2.size(2)
         img_W = uv_map2.size(3)
 
@@ -155,26 +152,17 @@ class KPTransferTester(ITester):
         kps1_3d = self.model.uv_to_3d(kps1_uv).view(1, 1, -1 ,3)
         uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2)).view(1, img_H, img_W, 3)
 
-        # kps1_3d = self.uv2points.forward()
-        # uv_map2_3d = self.uv2points.forward()
         distances3d = torch.sum((kps1_3d.view(-1, 1, 3) - uv_points3d.view(1, -1, 3))**2, -1).sqrt()
 
         distances3d = distances3d + (1 - mask2.view(1, -1)) * 1000
         distances = distances3d
         min_dist, min_indices = torch.min(distances.view(len(kps1), -1), dim=1)
-        # min_dist = min_dist + (1 - kps1_vis).float() * 1000
+        min_dist = min_dist + (1 - kps1_vis).float() * 1000
         transfer_kps = torch.stack([min_indices % img_W, min_indices // img_W], dim=1)
 
         kp_transfer_error = torch.norm((transfer_kps.float() - kps2[:, 0:2]), dim=1)
-        return transfer_kps
 
-    def _test_start_call(self):
-
-        return
-
-    def _test_end_call(self):
-
-        return
+        return transfer_kps, torch.stack([kp_transfer_error, kp_mask.float(), min_dist], dim=1)
 
     def _load_dataset(self) -> KPDataset:
 
@@ -197,7 +185,7 @@ class KPTransferTester(ITester):
 
         return model
 
-    def _add_kp_summaries(self, src_kp, tar_kp, tar_pred_kp, src_img, tar_img, step, merge=True):
+    def _add_kp_summaries(self, kps1, kps2, pred_kp12, pred_kp21, img1, img2, step, merge=True):
         """
         Add key point summaries to tensorboard
 
@@ -214,17 +202,25 @@ class KPTransferTester(ITester):
         if not self.config.add_summaries:
             return
 
-        src_kp_img = draw_key_points(src_img, src_kp, self.key_point_colors)
-        tar_kp_img = draw_key_points(tar_img, tar_kp, self.key_point_colors)
-        tar_pred_kp_img = draw_key_points(tar_img, tar_pred_kp, self.key_point_colors)
+        kps1 = kps1.unsqueeze(0)
+        kps2 = kps2.unsqueeze(0)
+        pred_kp12 = pred_kp12.unsqueeze(0)
+        pred_kp21 = pred_kp21.unsqueeze(0)
+
+        kp_img1 = draw_key_points(img1, kps1, self.key_point_colors)
+        kp_img2 = draw_key_points(img2, kps2, self.key_point_colors)
+        pred_kp_img1 = draw_key_points(img1, pred_kp21, self.key_point_colors)
+        pred_kp_img2 = draw_key_points(img2, pred_kp12, self.key_point_colors)
 
         if merge:
-            self.summary_writer.add_images('merged/kp', torch.cat((src_kp_img, tar_pred_kp_img), dim=2), step)
-            self.summary_writer.add_images('merged/tar_orig', tar_kp_img, step)
+            self.summary_writer.add_images('merged/kp12', torch.cat((kp_img1, pred_kp_img2), dim=2), step)
+            self.summary_writer.add_images('merged/kp21', torch.cat((kp_img2, pred_kp_img1), dim=2), step)
+            self.summary_writer.add_images('merged/orig1', kp_img1, step)
+            self.summary_writer.add_images('merged/orig2', kp_img2, step)
         else:
-            self.summary_writer.add_images('src', src_kp_img, step)
-            self.summary_writer.add_images('tar/orig', tar_kp_img, step)
-            self.summary_writer.add_images('tar/pred', tar_pred_kp_img, step)
+            self.summary_writer.add_images('src', kp_img1, step)
+            self.summary_writer.add_images('tar/orig', kp_img2, step)
+            self.summary_writer.add_images('tar/pred', pred_kp_img2, step)
 
     def _add_uv_summaries(self, src_pred_out, tar_pred_out, src, tar, step, merge=True):
         

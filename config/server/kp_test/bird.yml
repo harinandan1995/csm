@@ -3,7 +3,7 @@ dataset:
   img_size: 256
   img_height: 320
   img_width: 512
-  split: 'train'
+  split: 'test'
   transform: 'flip'
   padding_frac: 0.05
   jitter_frac: 0.05
