@@ -21,12 +21,12 @@ def calculate_correct_key_points(src_kp, tar_kp, tar_pred_kp, theta_x, theta_y):
     out[2] = pred.size(0)
 
     pred = torch.abs(target[:, :2] - pred[:, :2])
-    pred, _ = torch.where((pred[:, 0:1] < theta_x) & (pred[:, 1:] <  theta_y))
+    # pred, _ = torch.where((pred[:, 0:1] < theta_x) & (pred[:, 1:] <  theta_y))
+    pred, _ = torch.where((torch.sqrt(pred[:, 0:1] ** 2 + pred[:, 1:] ** 2)  < max(theta_y,theta_x)))
     out[0] = pred.size(0)
     out[1] = out[2] - out[0]
 
     return out
-
 
     
 
