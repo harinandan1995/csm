@@ -47,7 +47,21 @@ class CSMTrainer(ITrainer):
         self.data_cfg = config.dataset
 
         super(CSMTrainer, self).__init__(config.train)
+        with open(osp.join(self.summary_dir, "config.json"), "w+") as f:
+            json.dump(config, f, indent=3)
 
+        # overfit
+        # old_num_samples = self.dataset.num_samples
+        # self.dataset.num_samples = 50
+        # self.config.pose_warmup_step = (
+        #     self.config.pose_warmup_step * self.dataset.num_samples)//old_num_samples
+
+        self.summary_writer.add_text("Train Config", json.dumps(self.config))
+
+        # normalize loss by weighting coefficients; multiply by 10 to get similiar ranges in comparison to previous weightings
+        loss_weights = self.config.loss.values()
+        for k, v in self.config.loss.items():
+            self.config.loss[k] = 10*v / sum(loss_weights)
         self.gt_2d_pos_grid = get_gt_positions_grid(
             (self.data_cfg.img_size, self.data_cfg.img_size)).to(self.device).permute(2, 0, 1)
         self.gt_2d_pos_grid = self.gt_2d_pos_grid.unsqueeze(0).unsqueeze(0)
