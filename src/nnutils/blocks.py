@@ -187,10 +187,12 @@ class Encoder(nn.Module):
     def __init__(self, trainable=True, num_in_chans: int = 3, num_feats: int = 100, input_shape=(256, 256)):
         """
         Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
-        Pre-trained layers are frozen.
-        :param trainable: bool. whether to train the resnet layers.
+
+        :param trainable: bool. whether to train the pretrained resnet layers.
         :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
-        :return: Feature extractor from resnet18 without classification head and one prepended 1x1 conv layer
+        :param num_feats: Number of feats extracted by the encoder. default: 100
+        :param input_shape: Input shape of the images. This is necessary to calculate the output size of fully convolutional resnet.
+        :return: Feature extractor including resnet18 without classification head, one prepended 1x1 conv layer and a couple of FC layers.
         """
 
         super(Encoder, self).__init__()
@@ -222,7 +224,18 @@ class Encoder(nn.Module):
             nn.LeakyReLU(0.2, inplace=True))
 
     def forward(self, img):
-        # feats = self.conv(img)
+        """
+        Extract features from an image. Those features are used for camera pose estimation and articulation estimation.
+        
+         :param img: Iinput_shape sized image. Dimensions: N X W X H X 3
+            N = Batch size
+            W = Width
+            H = Height
+            3 = number of channels
+         :return: Extracted features from image. Dimensions: N X F
+         F = Number of features.
+       
+        """
 
         feats = self.conv1(img)
         feats = self.resnet(feats)
