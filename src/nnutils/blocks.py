@@ -11,38 +11,40 @@ def upconv2d(in_planes, out_planes, mode='bilinear'):
     :param out_planes: Number of output channels
     :param mode: Upsample mode
     """
-    
+
     upconv = nn.Sequential(
         nn.Upsample(scale_factor=2, mode=mode),
         nn.ReflectionPad2d(1),
         nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=1, padding=0),
-        nn.LeakyReLU(0.2,inplace=True)
+        nn.LeakyReLU(0.2, inplace=True)
     )
-    
+
     return upconv
 
 
 def conv2d(batch_norm, in_planes, out_planes, kernel_size=3, stride=1):
     """
     Convolution + LeakyReLU block
-    
+
     :param batch_norm: True or False. True if you want batchnormalizatoin layer
     :param in_planes: Number of input channels
     :param out_planes: Number of output channels
     :param kernel_size: Convolution kernel size
     :param stride: Convolution kernel stride
     """
-    
+
     if batch_norm:
         return nn.Sequential(
-            nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=(kernel_size-1)//2, bias=True),
+            nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
+                      stride=stride, padding=(kernel_size-1)//2, bias=True),
             nn.BatchNorm2d(out_planes),
-            nn.LeakyReLU(0.2,inplace=True)
+            nn.LeakyReLU(0.2, inplace=True)
         )
     else:
         return nn.Sequential(
-            nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=(kernel_size-1)//2, bias=True),
-            nn.LeakyReLU(0.2,inplace=True)
+            nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
+                      stride=stride, padding=(kernel_size-1)//2, bias=True),
+            nn.LeakyReLU(0.2, inplace=True)
         )
 
 
@@ -68,32 +70,33 @@ def net_init(net):
 
     :param net: Model for which the weights should be initialized 
     """
-    
+
     for m in net.modules():
-    
+
         if isinstance(m, nn.Linear):
-    
+
             m.weight.data.normal_(0, 0.02)
             if m.bias is not None:
                 m.bias.data.zero_()
 
-        if isinstance(m, nn.Conv2d): #or isinstance(m, nn.ConvTranspose2d):
-    
+        if isinstance(m, nn.Conv2d):  # or isinstance(m, nn.ConvTranspose2d):
+
             m.weight.data.normal_(0, 0.02)
             if m.bias is not None:
                 m.bias.data.zero_()
 
         if isinstance(m, nn.ConvTranspose2d):
-    
+
             # Initialize Deconv with bilinear weights.
             base_weights = bilinear_init(m.weight.data.size(-1))
             base_weights = base_weights.unsqueeze(0).unsqueeze(0)
-            m.weight.data = base_weights.repeat(m.weight.data.size(0), m.weight.data.size(1), 1, 1)
+            m.weight.data = base_weights.repeat(
+                m.weight.data.size(0), m.weight.data.size(1), 1, 1)
             if m.bias is not None:
                 m.bias.data.zero_()
 
         if isinstance(m, nn.Conv3d) or isinstance(m, nn.ConvTranspose3d):
-    
+
             m.weight.data.normal_(0, 0.02)
             if m.bias is not None:
                 m.bias.data.zero_()
@@ -179,26 +182,65 @@ class ResNetConv(nn.Module):
         return x
 
 
-def get_encoder(trainable=False, num_in_chans: int = 3):
-    """
-    Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
-    Pre-trained layers are frozen.
-    :param trainable: bool. whether to train the resnet layers.
-    :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
-    :return: Feature extractor from resnet18 without classification head and one prepended 1x1 conv layer
-    """
-    conv1 = torch.nn.Conv2d(in_channels=num_in_chans,
-                            out_channels=3, kernel_size=1)
-    resnet = torch.hub.load(
-        'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
-    encoder = nn.Sequential(conv1, *([*resnet.children()][:-1]))
+class Encoder(nn.Module):
 
-    if not trainable:
-        # freeze pretrained resnet layers
-        params = encoder.parameters()
-        # avoid freezing the first 1x1 conv layer
-        next(params)
-        for param in params:
-            param.requires_grad = False
+    def __init__(self, trainable=True, num_in_chans: int = 3, num_feats: int = 100, input_shape=(256, 256)):
+        """
+        Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
 
-    return encoder
+        :param trainable: bool. whether to train the pretrained resnet layers.
+        :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
+        :param num_feats: Number of feats extracted by the encoder. default: 100
+        :param input_shape: Input shape of the images. This is necessary to calculate the output size of fully convolutional resnet.
+        :return: Feature extractor including resnet18 without classification head, one prepended 1x1 conv layer and a couple of FC layers.
+        """
+
+        super(Encoder, self).__init__()
+        self.conv1 = torch.nn.Conv2d(in_channels=num_in_chans,
+                                     out_channels=3, kernel_size=1)
+        self.resnet = ResNetConv()
+        if not trainable:
+            # freeze pretrained resnet layers
+
+            for param in resnet.parameters():
+                param.requires_grad = False
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(512, 256,  kernel_size=4, stride=2,
+                      padding=(4-1)//2),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True))
+
+        nc_input = 256 * (input_shape[0] // 64) * (input_shape[1] // 64)
+
+        self.conv = nn.Sequential(self.conv1,
+                                  self.resnet,
+                                  self.conv2)
+
+        self.fc = nn.Sequential(
+            nn.Linear(nc_input, num_feats),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(num_feats, num_feats),
+            nn.LeakyReLU(0.2, inplace=True))
+
+    def forward(self, img):
+        """
+        Extract features from an image. Those features are used for camera pose estimation and articulation estimation.
+        
+         :param img: Iinput_shape sized image. Dimensions: N X W X H X 3
+            N = Batch size
+            W = Width
+            H = Height
+            3 = number of channels
+         :return: Extracted features from image. Dimensions: N X F
+         F = Number of features.
+       
+        """
+
+        feats = self.conv1(img)
+        feats = self.resnet(feats)
+        feats = self.conv2(feats)
+
+        feats = feats.view(img.size(0), -1)
+        feats = self.fc(feats)
+        return feats

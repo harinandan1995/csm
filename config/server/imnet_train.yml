@@ -19,27 +19,27 @@ dataset:
 
 train:
   batch_size: 2
-  epochs: 250
+  epochs: 200
   shuffle: True
   workers: 16
   checkpoint: ''
-  out_dir: '/mnt/raid/csmteam/out'
+  out_dir: '/mnt/raid/csmteam/out/cam_hypo_debug'
   use_gt_cam: False
   use_sampled_cam: False
   use_arti: False
   num_cam_poses: 8
-  pose_warmup_epochs: 1
+  pose_warmup_step: 2000
   arti_epochs: 0
   log:
-    image_summary_step: 50
-    image_epoch: 1
+    image_summary_step: 10
+    image_epoch: 5
   loss:
-    geometric: 1
-    visibility: 10
-    mask: 5
-    diverse: 0.05
-    quat: 0.1
-    arti: 10.0
+    geometric: 2.
+    visibility: 1.
+    mask: 2.
+    diverse: 0.01
+    quat: 10.
+    arti: 10.
   optim:
     lr: 0.0001
     beta1: 0.9

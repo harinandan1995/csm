@@ -5,6 +5,7 @@ import torch.utils.data
 
 from src.scripts.kp_test import start_test
 from src.scripts.train import start_train
+from src.scripts.hpt import start_hpt
 from src.utils.utils import add_train_arguments, add_kp_test_arguments
 
 parser = argparse.ArgumentParser()
@@ -24,6 +25,9 @@ sub_parsers = parser.add_subparsers(help='Train or Test', dest='mode')
 
 train_parser = sub_parsers.add_parser('train', help='Use this to start training a model')
 add_train_arguments(train_parser)
+
+hpt_parser = sub_parsers.add_parser('hpt', help='Use this to start the hpt')
+add_train_arguments(hpt_parser)
 
 test_parser = sub_parsers.add_parser('kp_test', help='Use this to start testing the model')
 add_kp_test_arguments(test_parser)
@@ -45,3 +49,6 @@ if __name__ == '__main__':
     elif args.mode == 'kp_test':
         print('Starting the key point transfer testing........')
         start_test(args.config, args.__dict__, args.device)
+    elif args.mode == 'hpt':
+        print('Starting the hyper parameter tuning........')
+        start_hpt(args.config, args.__dict__, args.device)

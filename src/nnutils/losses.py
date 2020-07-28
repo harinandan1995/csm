@@ -130,14 +130,15 @@ def quaternion_regularization_loss(quats: torch.tensor):
 
 def diverse_loss(probs):
     """
-    Diverse loss for the poses
+    Diverse loss for the poses. The goal is to maximize the entropy over all hypothesis. 
     :param probs: B X CP probabilities for each camera pose
     :return: Sum of entropy of the probabilities
     """
-
+    # compute negative entropy, which should be minimized in order to maximize entropy
     entropy = torch.log(probs + 1E-9) * probs
+    # shift enrtopy above zero to allow proper hpt
+    entropy +=1
     entropy = entropy.sum(1).mean()
-
     return entropy
 
 

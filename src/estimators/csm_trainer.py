@@ -1,7 +1,11 @@
+import json
 import os.path as osp
 
+import matplotlib.pyplot as plt
 import numpy as np
-import torch.utils.data
+import pandas as pd
+import seaborn as sns
+import torch
 from pytorch3d.renderer import OpenGLOrthographicCameras
 
 from src.data.cub_dataset import CubDataset
@@ -9,8 +13,9 @@ from src.data.imnet_dataset import ImnetDataset
 from src.data.p3d_dataset import P3DDataset
 from src.estimators.trainer import ITrainer
 from src.model.csm import CSM
-from src.nnutils.color_transform import sample_uv_contour, draw_key_points
-from src.nnutils.geometry import get_gt_positions_grid, convert_3d_to_uv_coordinates
+from src.nnutils.color_transform import draw_key_points, sample_uv_contour
+from src.nnutils.geometry import (convert_3d_to_uv_coordinates,
+                                  get_gt_positions_grid)
 from src.nnutils.losses import *
 from src.utils.config import ConfigParser
 from src.utils.utils import get_time
@@ -47,6 +52,21 @@ class CSMTrainer(ITrainer):
         self.data_cfg = config.dataset
 
         super(CSMTrainer, self).__init__(config.train)
+        with open(osp.join(self.summary_dir, "config.json"), "w+") as f:
+            json.dump(config, f, indent=3)
+
+        # overfit
+        # old_num_samples = self.dataset.num_samples
+        # self.dataset.num_samples = 50
+        # self.config.pose_warmup_step = (
+        #     self.config.pose_warmup_step * self.dataset.num_samples)//old_num_samples
+
+        self.summary_writer.add_text("Train Config", json.dumps(self.config))
+
+        # normalize loss by weighting coefficients; multiply by 10 to get similiar ranges in comparison to previous weightings
+        loss_weights = self.config.loss.values()
+        for k, v in self.config.loss.items():
+            self.config.loss[k] = 10*v / sum(loss_weights)
 
         self.gt_2d_pos_grid = get_gt_positions_grid(
             (self.data_cfg.img_size, self.data_cfg.img_size)).to(self.device).permute(2, 0, 1)
@@ -63,7 +83,13 @@ class CSMTrainer(ITrainer):
         # Running losses to calculate mean loss per epoch for all types of losses
         self.running_loss = torch.tensor([0, 0, 0, 0, 0, 0], dtype=torch.float32)
         if self.config.use_gt_cam:
-            self.config.pose_warmup_epochs = 0
+            self.config.pose_warmup_step = 0
+
+    def train(self, **kwargs):
+        super(CSMTrainer, self).train(**kwargs)
+
+        # return last loss for evaluation purposes
+        return self.running_loss
 
     def _calculate_loss(self, step, batch, epoch):
         """
@@ -92,11 +118,12 @@ class CSMTrainer(ITrainer):
 
         pred_out = self.model(img, mask, scale, trans, quat, epoch)
 
-        loss = self._calculate_loss_for_predictions(mask, pred_out, epoch < self.config.pose_warmup_epochs, epoch < self.config.arti_epochs)
+        loss = self._calculate_loss_for_predictions(
+            mask,  pred_out,   (epoch*(step+1) + step) < self.config.pose_warmup_step, epoch < self.config.arti_epochs)
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, epoch : int, pose_warmup: bool = False, not_arti: bool = True) -> torch.tensor:
+    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict,  pose_warmup: bool = False, not_arti: bool = True) -> torch.tensor:
         """Calculates the loss from the output
 
         :param mask: (B X 1 X H X W) foreground mask
@@ -115,29 +142,35 @@ class CSMTrainer(ITrainer):
         prob_coeffs = None
         if not self.config.use_gt_cam and not self.config.use_sampled_cam:
             _, _, _, prob_coeffs = pred_out['pred_poses']
+            # TOOD: why?
             prob_coeffs = torch.add(prob_coeffs, 0.1)
 
         if self.config.loss.geometric > 0 and not pose_warmup:
             loss[0] = self.config.loss.geometric * geometric_cycle_consistency_loss(
                 self.gt_2d_pos_grid, pred_positions, mask, coeffs=prob_coeffs)
-        
+
         if self.config.loss.visibility > 0 and not pose_warmup:
             loss[1] = self.config.loss.visibility * visibility_constraint_loss(
                 pred_depths, pred_z, mask, coeffs=prob_coeffs)
 
         if not self.config.use_gt_cam:
             _, _, pred_quat, pred_prob = pred_out['pred_poses']
-            if self.config.loss.mask > 0: 
-                loss[2] = self.config.loss.mask * mask_reprojection_loss(mask, pred_masks, coeffs=prob_coeffs)
-            if self.config.loss.diverse > 0 and not pose_warmup:
+            if self.config.loss.mask > 0:
+                loss[2] = self.config.loss.mask * \
+                    mask_reprojection_loss(
+                        mask, pred_masks, coeffs=prob_coeffs)
+            if self.config.loss.diverse > 0 and (not pose_warmup or not self.config.loss.get("mask_only", True)):
                 loss[3] = self.config.loss.diverse * diverse_loss(pred_prob)
-            if self.config.loss.quat > 0 and not pose_warmup:
-                loss[4] = self.config.loss.quat * quaternion_regularization_loss(pred_quat)
 
-        #TODO:add config: use_arti & loss.arti & arti_threshold
+            if self.config.loss.quat > 0 and (not pose_warmup or not self.config.loss.get("mask_only", True)):
+                loss[4] = self.config.loss.quat * \
+                    quaternion_regularization_loss(pred_quat)
+
+        # TODO:add config: use_arti & loss.arti & arti_threshold
         if self.config.use_arti and not not_arti:
             pred_arti_translation = pred_out["pred_arti_translation"]
-            loss[5] = self.config.loss.arti * articulation_loss(pred_arti_translation)
+            loss[5] = self.config.loss.arti * \
+                articulation_loss(pred_arti_translation)
 
         self.running_loss = torch.add(self.running_loss, loss)
 
@@ -148,20 +181,26 @@ class CSMTrainer(ITrainer):
         if current_epoch % 5 == 0:
             self._save_model(osp.join(self.checkpoint_dir,
                                       'model_%s_%d' % (get_time(), current_epoch)))
-	
+
         self.running_loss = torch.true_divide(self.running_loss, total_steps)
 
         # Add loss summaries & reset the running losses
-        self.summary_writer.add_scalar('loss/geometric', self.running_loss[0], current_epoch)
-        self.summary_writer.add_scalar('loss/visibility', self.running_loss[1], current_epoch)
+        self.summary_writer.add_scalar(
+            'loss/geometric', self.running_loss[0], current_epoch)
+        self.summary_writer.add_scalar(
+            'loss/visibility', self.running_loss[1], current_epoch)
 
         if not self.config.use_gt_cam:
 
-            self.summary_writer.add_scalar('loss/mask', self.running_loss[2], current_epoch)
-            self.summary_writer.add_scalar('loss/diverse', self.running_loss[3], current_epoch)
-            self.summary_writer.add_scalar('loss/quat', self.running_loss[4], current_epoch)
+            self.summary_writer.add_scalar(
+                'loss/mask', self.running_loss[2], current_epoch)
+            self.summary_writer.add_scalar(
+                'loss/diverse', self.running_loss[3], current_epoch)
+            self.summary_writer.add_scalar(
+                'loss/quat', self.running_loss[4], current_epoch)
 
-        self.running_loss = torch.zeros_like(self.running_loss)
+        if current_epoch != (total_epochs-1):
+            self.running_loss = torch.zeros_like(self.running_loss)
 
     def _batch_end_call(self, batch, loss, out, step, total_steps, epoch, total_epochs):
 
@@ -196,7 +235,7 @@ class CSMTrainer(ITrainer):
         :return: A torch model satisfying the above input output structure
         """
 
-        model = CSM(self.dataset.template_mesh, self.dataset.mean_shape, self.config.use_gt_cam, 
+        model = CSM(self.dataset.template_mesh, self.dataset.mean_shape, self.config.use_gt_cam,
                     self.config.num_cam_poses, self.config.use_sampled_cam, self.config.use_arti,
                     self.config.arti_epochs, self.dataset.arti_info_mesh).to(self.device)
 
@@ -212,13 +251,15 @@ class CSMTrainer(ITrainer):
         :param batch: A dictionary containing the batched inputs to the model
         """
 
-        uv = out["uv"]
+        uv = out['uv']
         pred_z = out['pred_z']
         pred_masks = out['pred_masks']
         pred_depths = out['pred_depths']
         pred_positions = out['pred_positions']
-        rotation = out["rotation"]
-        translation = out["translation"]
+        rotation = out['rotation']
+        translation = out['translation']
+        # last element of tuple contains probabilities
+        pred_prob = out['pred_poses'][-1]
 
         img = batch['img'].to(self.device, dtype=torch.float)
         mask = batch['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
@@ -226,32 +267,38 @@ class CSMTrainer(ITrainer):
         sum_step = int(step / self.config.log.image_summary_step)
 
         if step % self.config.log.image_summary_step == 0 and epoch % self.config.log.image_epoch == 0:
-            
+
             # self._add_kp_summaries(rotation, translation, batch, epoch, sum_step)
             self._add_loss_vis(pred_positions, mask, epoch, sum_step)
             self._add_input_vis(img, mask, epoch, sum_step)
-            self._add_pred_vis(uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step)
-    
+            self._add_pred_vis(uv, pred_z, pred_depths, pred_masks, img, mask, epoch,
+                               sum_step, (epoch*(step+1) + step) < self.config.pose_warmup_step)
+            self.add_distr_vis(
+                epoch, sum_step, pred_prob.clone().detach().cpu(), 0)
+
     def _add_kp_summaries(self, rotation, translation, batch, epoch, sum_step):
 
         img = batch['img'].to(self.device, dtype=torch.float)
-        camera = OpenGLOrthographicCameras(device=self.device, R=rotation.view(-1, 3, 3), T=translation.view(-1, 3))
+        camera = OpenGLOrthographicCameras(
+            device=self.device, R=rotation.view(-1, 3, 3), T=translation.view(-1, 3))
 
         kps = batch['kp'].to(self.device, dtype=torch.float)
         kps[:, :, :2] = ((kps[:, :, :2] + 1)/2) * 255
         kps = kps.to(torch.int32)
-        
+
         kp_img = draw_key_points(img, kps, self.key_point_colors)
         self.summary_writer.add_images('%d/kp/kp' % epoch, kp_img, sum_step)
-        
+
         # Plot the key points directly using the 3D keypoints and projecting them onto image plane
-        kp_3d = torch.from_numpy(self.dataset.kp_3d).to(self.device, dtype=torch.float32).unsqueeze(0)
+        kp_3d = torch.from_numpy(self.dataset.kp_3d).to(
+            self.device, dtype=torch.float32).unsqueeze(0)
         xyz = camera.transform_points(kp_3d)
         xy = (((xyz[:, :, :2] + 1)/2) * 255).to(torch.int32)
         kp_xy = torch.cat((xy, kps[:, :, 2:]), dim=2)
         kp3d_to_image = draw_key_points(img, kp_xy, self.key_point_colors)
-        self.summary_writer.add_images('%d/kp/kp3d_to_image' % epoch, kp3d_to_image, sum_step)
-        
+        self.summary_writer.add_images(
+            '%d/kp/kp3d_to_image' % epoch, kp3d_to_image, sum_step)
+
         # Draw key points by converting 3D kps to uv values and then back to 3D
         kp_uv = convert_3d_to_uv_coordinates(kp_3d)
         uv_flatten = kp_uv.view(-1, 2)
@@ -259,9 +306,11 @@ class CSMTrainer(ITrainer):
         xyz = camera.transform_points(uv_3d)
         xy = (((xyz[:, :, :2] + 1) / 2) * 255).to(torch.int32)
         kp_xy = torch.cat((xy, kps[:, :, 2:]), dim=2)
-        kp3d_to_uv_to_3d_to_image = draw_key_points(img, kp_xy, self.key_point_colors)
-        self.summary_writer.add_images('%d/kp/kp3d_to_uv_to_3d_to_image' % epoch, kp3d_to_uv_to_3d_to_image, sum_step)
-           
+        kp3d_to_uv_to_3d_to_image = draw_key_points(
+            img, kp_xy, self.key_point_colors)
+        self.summary_writer.add_images(
+            '%d/kp/kp3d_to_uv_to_3d_to_image' % epoch, kp3d_to_uv_to_3d_to_image, sum_step)
+
     def _add_loss_vis(self, pred_positions, mask, epoch, sum_step):
         """
         Add loss visualizations to the tensorboard summaries
@@ -269,14 +318,14 @@ class CSMTrainer(ITrainer):
 
         loss_values = torch.mean(geometric_cycle_consistency_loss(
             self.gt_2d_pos_grid, pred_positions, mask, reduction='none'), dim=2, keepdim=True)
-        
-        loss_values = loss_values.view(-1, 1, loss_values.size(-2), loss_values.size(-2))
-        loss_min, _ = loss_values.min(dim=0, keepdim=True)
-        loss_max, _ = loss_values.max(dim=0, keepdim=True)
-        
-        loss_values = (loss_values - loss_min)/(loss_max-loss_min)
-        
-        self.summary_writer.add_images('%d/pred/geometric' % epoch, loss_values, sum_step)
+
+        loss_values = loss_values.view(-1, 1,
+                                       loss_values.size(-2), loss_values.size(-2))
+
+        loss_values = (loss_values - loss_values.min()) / \
+            (loss_values.max()-loss_values.min())
+        self.summary_writer.add_images(
+            '%d/pred/geometric' % epoch, loss_values, sum_step)
 
     def _add_input_vis(self, img, mask, epoch, sum_step):
         """
@@ -285,24 +334,30 @@ class CSMTrainer(ITrainer):
 
         self.summary_writer.add_images('%d/data/img' % epoch, img, sum_step)
         self.summary_writer.add_images('%d/data/mask' % epoch, mask, sum_step)
-    
-    def _add_pred_vis(self, uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step):
+
+    def _add_pred_vis(self, uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step, warmup):
         """
         Add predicted output (depth, uv, masks) visualizations to the tensorboard summaries
         """
-
-        uv_color, uv_blend = sample_uv_contour(img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
-        self.summary_writer.add_images('%d/pred/uv_blend' % epoch, uv_blend, sum_step)
-        self.summary_writer.add_images('%d/pred/uv' % epoch, uv_color * mask, sum_step)
-        
-        depth = (pred_depths - pred_depths.min()) / (pred_depths.max()-pred_depths.min())
-        self.summary_writer.add_images('%d/pred/depth' % epoch, depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
-        
-        z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
-        self.summary_writer.add_images('%d/pred/z' % epoch, z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
-
         self.summary_writer.add_images(
             '%d/pred/mask' % epoch, pred_masks.view(-1, 1, pred_masks.size(-2), pred_masks.size(-1)), sum_step)
+
+        depth = (pred_depths - pred_depths.min()) / \
+            (pred_depths.max()-pred_depths.min())
+        self.summary_writer.add_images(
+            '%d/pred/depth' % epoch, depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
+
+        if not warmup:
+            uv_color, uv_blend = sample_uv_contour(
+                img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
+            self.summary_writer.add_images(
+                '%d/pred/uv_blend' % epoch, uv_blend, sum_step)
+            self.summary_writer.add_images(
+                '%d/pred/uv' % epoch, uv_color * mask, sum_step)
+
+            z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
+            self.summary_writer.add_images(
+                '%d/pred/z' % epoch, z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
 
     def _get_template_mesh_colors(self):
         """
@@ -317,3 +372,50 @@ class CSMTrainer(ITrainer):
         colors = colors.squeeze(2).permute(0, 2, 1) * 255
 
         return colors.to(torch.int)
+
+    def add_distr_vis(self, epoch, sum_step, probs, sample_idx):
+
+        sns.set(style="white", rc={"axes.facecolor": (0, 0, 0, 0)})
+
+        # Create the data
+        tiles = torch.arange(1, probs.size(0)+1)
+        batch = torch.repeat_interleave(tiles, probs.size(1))
+
+        num_hypo = torch.arange(1, probs.size(
+            1)+1, dtype=torch.int).repeat(probs.size(0))
+        probs = torch.flatten(probs)
+
+        df = pd.DataFrame(dict(probs=probs, batch=batch, num_hypo=num_hypo))
+
+        # Initialize the FacetGrid object
+        pal = sns.cubehelix_palette(10, rot=-.25, light=.7)
+        g = sns.FacetGrid(df, row="batch", hue="batch", aspect=2,
+                          height=2, palette=pal, margin_titles=True)
+
+        # Draw the densities in a few steps
+        #g.map(sns.kdeplot, "x", clip_on=False, shade=True, alpha=1, lw=1.5, bw=.2)
+        #g.map(sns.kdeplot, "x", clip_on=False, color="w", lw=2, bw=.2)
+        #g.map(plt.axhline, y=0, lw=2, clip_on=False)
+        g.map(sns.barplot, x="num_hypo", y="probs", data=df, ci=None)
+
+        # Define and use a simple function to label the plot in axes coordinates
+
+        # Remove axes details that don't play well with overlap
+        g.set_titles("")
+        # g.set(yticks=[])
+        g.despine(bottom=True, left=True)
+
+        fig = g.fig
+        # fig.savefig("out.png")
+
+        # If we haven't already shown or saved the plot, then we need to
+        # draw the figure first...
+        fig.canvas.draw()
+
+        # Now we can save it to a numpy array.
+        data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        data = np.moveaxis(data.reshape(1, *data.shape), -1, 1)
+        # print(data)
+        self.summary_writer.add_images(
+            "%d/pred/cam_hypo_probs" % epoch, data, sum_step)

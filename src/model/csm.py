@@ -8,7 +8,7 @@ from src.model.unet import UNet
 from src.model.uv_to_3d import UVto3D
 from src.nnutils.geometry import get_scaled_orthographic_projection, convert_3d_to_uv_coordinates
 from src.nnutils.rendering import MaskRenderer, DepthRenderer, MaskAndDepthRenderer
-from src.nnutils.blocks import get_encoder
+from src.nnutils.blocks import Encoder
 
 
 class CSM(torch.nn.Module):
@@ -61,8 +61,8 @@ class CSM(torch.nn.Module):
         self.use_arti = use_arti
 
         if not self.use_gt_cam or self.use_arti:
-            self.encoder = get_encoder(
-                trainable=False, num_in_chans=num_in_chans)
+            self.encoder = Encoder(
+                trainable=True, num_in_chans=num_in_chans)
 
         if not self.use_gt_cam:
             self.multi_cam_pred = MultiCameraPredictor(
@@ -74,12 +74,12 @@ class CSM(torch.nn.Module):
             arti_mesh_info["template_mesh"] = template_mesh
             self.arti_epochs = arti_epochs
             self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
-                                            device=template_mesh.device, **arti_mesh_info)
+                                          device=template_mesh.device, **arti_mesh_info)
         if self.use_sampled_cam:
             num_cam_poses = 1
 
-        self.num_cam_poses = num_cam_poses #number of camera postion used in rendering for each image
-
+        # number of camera postion used in rendering for each image
+        self.num_cam_poses = num_cam_poses
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
                 scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor, epochs: int):
@@ -117,10 +117,11 @@ class CSM(torch.nn.Module):
         sphere_points = torch.tanh(sphere_points)
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
-        img_feats = None
         if (self.use_arti and epochs >= self.arti_epochs) or not self.use_gt_cam:
             img_feats = self.encoder(img)
             img_feats = img_feats.view(len(img_feats), -1)
+        else:
+            img_feats = None
 
         rotation, translation, pred_poses, cam_idx = self._get_camera_extrinsics(
             img_feats, scale, trans, quat)
@@ -130,19 +131,21 @@ class CSM(torch.nn.Module):
             arti_verts, arti_rotation, arti_translation = self.arti(
                 img_feats, self.use_gt_cam, self.use_sampled_cam, cam_idx)
 
-
-        # TODO: add mesh articulation here, Daniel
-        # NOTE: we need N articulated meshes
         # The vertices output is [B x 1 x M(vertices number) x 3 if use_gt_cam or use_sampled_cam, otherwise it is [B x H x M x 3]
         if self.use_arti and epochs >= self.arti_epochs:
             meshes = self._articulate_meshes(arti_verts)
         else:
-            meshes = self.template_mesh.extend(img.size(0) * self.num_cam_poses)
+            meshes = self.template_mesh.extend(
+                img.size(0) * self.num_cam_poses)
 
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
             sphere_points, rotation, translation, arti_verts)
 
+        if torch.max(uv) > 1.0:
+            print('maximum index should be less that 1.0')
+        if torch.min(uv) < 0.0:
+            print('minimum value should be greater that 0.0')
 
         # Render depth and mask of the template for the cam pose
         pred_mask, pred_depth = self._render(
@@ -156,7 +159,7 @@ class CSM(torch.nn.Module):
             "rotation": rotation,
             "translation": translation,
             "uv_3d": uv_3d,
-            "uv": uv
+            "uv": uv,
         }
 
         if not self.use_gt_cam:
@@ -201,10 +204,11 @@ class CSM(torch.nn.Module):
                 scale, trans, quat, True)
         else:
             batch_size = img_feats.size(0)
-            cam_pred, sample_idx, pred_poses = self.multi_cam_pred(img_feats)
+            sample_cam_pred, sample_idx, pred_poses = self.multi_cam_pred(
+                img_feats)
 
             if self.use_sampled_cam:
-                pred_scale, pred_trans, pred_quat, _ = cam_pred
+                pred_scale, pred_trans, pred_quat, _ = sample_cam_pred
                 rotation, translation = get_scaled_orthographic_projection(
                     pred_scale, pred_trans, pred_quat)
             else:
@@ -213,6 +217,7 @@ class CSM(torch.nn.Module):
                     pred_scale.view(-1), pred_trans.view(-1,
                                                          2), pred_quat.view(-1, 4)
                 )
+                # restore camera hypothesis, -1 = number of camera hypothesis
                 rotation = rotation.view(batch_size, -1, 3, 3)
                 translation = translation.view(batch_size, -1, 3)
 
@@ -249,7 +254,8 @@ class CSM(torch.nn.Module):
             uv_new = uv.view(batch_size, height*width, 2)
             uv_new = uv_new.unsqueeze(1).repeat(1, num_poses, 1, 1)
             uv_flatten = uv_new.view(-1, 2)
-            uv_3d = self.uv_to_3d(uv_flatten, arti_verts).view(batch_size * num_poses, -1, 3)
+            uv_3d = self.uv_to_3d(uv_flatten, arti_verts).view(
+                batch_size * num_poses, -1, 3)
 
         else:
 
@@ -258,14 +264,12 @@ class CSM(torch.nn.Module):
             uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(
                 batch_size*num_poses, -1, 3)
 
-        xyz = torch.bmm(uv_3d, rotation.view(-1, 3, 3)) + \
-              translation.view(-1, 1, 3)
-        xyz = xyz.view(batch_size, num_poses, height, width, 3)
+        cameras = OpenGLOrthographicCameras(device=sphere_points.device, R=rotation.view(-1, 3, 3), T=translation.view(-1, 3))
+        xyz_cam = cameras.get_world_to_view_transform().transform_points(uv_3d)
+        z = xyz_cam[:, :, 2:].view(batch_size, num_poses, height, width, 1)
+        xy = cameras.transform_points(uv_3d)[:, :, :2].view(batch_size, num_poses, height, width, 2)
 
-        xy = xyz[..., :2]
-        z = xyz[..., 2:]
-
-        xy = xy.permute(0, 1, 4, 2, 3)
+        xy = xy.permute(0, 1, 4, 2, 3).flip(2)
         z = z.permute(0, 1, 4, 2, 3)
         uv = uv.permute(0, 3, 1, 2)
         uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)[

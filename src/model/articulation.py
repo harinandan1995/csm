@@ -18,7 +18,7 @@ class ArticulationPredictor(nn.Module):
     It predicts angle (in axis-angle representation) and translation for articulation.
     """
 
-    def __init__(self, num_parts, num_feats=512, num_rots=2, num_trans=3, device='cuda', axis_move=False):
+    def __init__(self, num_parts, num_feats=100, num_rots=2, num_trans=3, device='cuda', axis_move=False):
         """
         :param num_parts: the number of part of object
         :param num_feats: the number of feats extracted from images
@@ -81,7 +81,7 @@ class Articulation(nn.Module):
     """
 
     def __init__(self,  template_mesh: Meshes, parts: list, num_parts: int, rotation_center: dict,
-                 parent: dict, alpha=None, num_feats=512, num_rots=2, num_trans=3,  encoder=None, device='cuda'):
+                 parent: dict, alpha=None, num_feats=100, num_rots=2, num_trans=3,  encoder=None, device='cuda'):
         """
         :param mesh: The base mesh for the certain category.
         :param parts: K element list. Each element in the list represent the part of each vertice in mesh (range:[0, num_parts - 1])
