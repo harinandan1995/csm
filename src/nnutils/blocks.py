@@ -179,26 +179,75 @@ class ResNetConv(nn.Module):
         return x
 
 
-def get_encoder(trainable=False, num_in_chans: int = 3):
-    """
-    Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
-    Pre-trained layers are frozen.
-    :param trainable: bool. whether to train the resnet layers.
-    :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
-    :return: Feature extractor from resnet18 without classification head and one prepended 1x1 conv layer
-    """
-    conv1 = torch.nn.Conv2d(in_channels=num_in_chans,
-                            out_channels=3, kernel_size=1)
-    resnet = torch.hub.load(
-        'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
-    encoder = nn.Sequential(conv1, *([*resnet.children()][:-1]))
+class Encoder(nn.Module):
 
-    if not trainable:
-        # freeze pretrained resnet layers
-        params = encoder.parameters()
-        # avoid freezing the first 1x1 conv layer
-        next(params)
-        for param in params:
-            param.requires_grad = False
+    def __init__(self, trainable=True, num_in_chans: int = 3, num_feats: int = 100, input_shape=(256, 256)):
+        """
+        Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
+        Pre-trained layers are frozen.
+        :param trainable: bool. whether to train the resnet layers.
+        :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
+        :return: Feature extractor from resnet18 without classification head and one prepended 1x1 conv layer
+        """
 
-    return encoder
+        super(Encoder, self).__init__()
+        self.conv1 = torch.nn.Conv2d(in_channels=num_in_chans,
+                                     out_channels=3, kernel_size=1)
+        self.resnet = ResNetConv()
+        if not trainable:
+            # freeze pretrained resnet layers
+
+            for param in resnet.parameters():
+                param.requires_grad = False
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(512, 256,  kernel_size=4, stride=2,
+                      padding=(4-1)//2),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True))
+
+        nc_input = 256 * (input_shape[0] // 64) * (input_shape[1] // 64)
+
+        self.conv = nn.Sequential(self.conv1,
+                                  self.resnet,
+                                  self.conv2)
+
+        self.fc = nn.Sequential(
+            nn.Linear(nc_input, num_feats),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(num_feats, num_feats),
+            nn.LeakyReLU(0.2, inplace=True))
+
+    def forward(self, img):
+        # feats = self.conv(img)
+
+        feats = self.conv1(img)
+        feats = self.resnet(feats)
+        feats = self.conv2(feats)
+
+        feats = feats.view(img.size(0), -1)
+        feats = self.fc(feats)
+        return feats
+
+
+def net_init(net):
+    for m in net.modules():
+        if isinstance(m, nn.Linear):
+            #n = m.out_features
+            # m.weight.data.normal_(0, 0.02 / n) #this modified initialization seems to work better, but it's very hacky
+            #n = m.in_features
+            # m.weight.data.normal_(0, math.sqrt(2. / n)) #xavier
+            m.weight.data.normal_(0, 0.02)
+            if m.bias is not None:
+                m.bias.data.zero_()
+
+        if isinstance(m, nn.Conv2d):  # or isinstance(m, nn.ConvTranspose2d):
+            #n = m.kernel_size[0] * m.kernel_size[1] * m.in_channels
+            # m.weight.data.normal_(0, math.sqrt(2. / n)) #this modified initialization seems to work better, but it's very hacky
+            m.weight.data.normal_(0, 0.02)
+            if m.bias is not None:
+                m.bias.data.zero_()
+
+        if isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm3d):
+            m.weight.data.fill_(1)
+            m.bias.data.zero_()

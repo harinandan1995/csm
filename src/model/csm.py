@@ -8,7 +8,7 @@ from src.model.unet import UNet
 from src.model.uv_to_3d import UVto3D
 from src.nnutils.geometry import get_scaled_orthographic_projection, convert_3d_to_uv_coordinates
 from src.nnutils.rendering import MaskRenderer, DepthRenderer, MaskAndDepthRenderer
-from src.nnutils.blocks import get_encoder
+from src.nnutils.blocks import Encoder
 
 
 class CSM(torch.nn.Module):
@@ -61,8 +61,8 @@ class CSM(torch.nn.Module):
         self.use_arti = use_arti
 
         if not self.use_gt_cam or self.use_arti:
-            self.encoder = get_encoder(
-                trainable=False, num_in_chans=num_in_chans)
+            self.encoder = Encoder(
+                trainable=True, num_in_chans=num_in_chans)
 
         if not self.use_gt_cam:
             self.multi_cam_pred = MultiCameraPredictor(
