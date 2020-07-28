@@ -11,38 +11,40 @@ def upconv2d(in_planes, out_planes, mode='bilinear'):
     :param out_planes: Number of output channels
     :param mode: Upsample mode
     """
-    
+
     upconv = nn.Sequential(
         nn.Upsample(scale_factor=2, mode=mode),
         nn.ReflectionPad2d(1),
         nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=1, padding=0),
-        nn.LeakyReLU(0.2,inplace=True)
+        nn.LeakyReLU(0.2, inplace=True)
     )
-    
+
     return upconv
 
 
 def conv2d(batch_norm, in_planes, out_planes, kernel_size=3, stride=1):
     """
     Convolution + LeakyReLU block
-    
+
     :param batch_norm: True or False. True if you want batchnormalizatoin layer
     :param in_planes: Number of input channels
     :param out_planes: Number of output channels
     :param kernel_size: Convolution kernel size
     :param stride: Convolution kernel stride
     """
-    
+
     if batch_norm:
         return nn.Sequential(
-            nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=(kernel_size-1)//2, bias=True),
+            nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
+                      stride=stride, padding=(kernel_size-1)//2, bias=True),
             nn.BatchNorm2d(out_planes),
-            nn.LeakyReLU(0.2,inplace=True)
+            nn.LeakyReLU(0.2, inplace=True)
         )
     else:
         return nn.Sequential(
-            nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=(kernel_size-1)//2, bias=True),
-            nn.LeakyReLU(0.2,inplace=True)
+            nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
+                      stride=stride, padding=(kernel_size-1)//2, bias=True),
+            nn.LeakyReLU(0.2, inplace=True)
         )
 
 
@@ -68,32 +70,33 @@ def net_init(net):
 
     :param net: Model for which the weights should be initialized 
     """
-    
+
     for m in net.modules():
-    
+
         if isinstance(m, nn.Linear):
-    
+
             m.weight.data.normal_(0, 0.02)
             if m.bias is not None:
                 m.bias.data.zero_()
 
-        if isinstance(m, nn.Conv2d): #or isinstance(m, nn.ConvTranspose2d):
-    
+        if isinstance(m, nn.Conv2d):  # or isinstance(m, nn.ConvTranspose2d):
+
             m.weight.data.normal_(0, 0.02)
             if m.bias is not None:
                 m.bias.data.zero_()
 
         if isinstance(m, nn.ConvTranspose2d):
-    
+
             # Initialize Deconv with bilinear weights.
             base_weights = bilinear_init(m.weight.data.size(-1))
             base_weights = base_weights.unsqueeze(0).unsqueeze(0)
-            m.weight.data = base_weights.repeat(m.weight.data.size(0), m.weight.data.size(1), 1, 1)
+            m.weight.data = base_weights.repeat(
+                m.weight.data.size(0), m.weight.data.size(1), 1, 1)
             if m.bias is not None:
                 m.bias.data.zero_()
 
         if isinstance(m, nn.Conv3d) or isinstance(m, nn.ConvTranspose3d):
-    
+
             m.weight.data.normal_(0, 0.02)
             if m.bias is not None:
                 m.bias.data.zero_()
@@ -228,26 +231,3 @@ class Encoder(nn.Module):
         feats = feats.view(img.size(0), -1)
         feats = self.fc(feats)
         return feats
-
-
-def net_init(net):
-    for m in net.modules():
-        if isinstance(m, nn.Linear):
-            #n = m.out_features
-            # m.weight.data.normal_(0, 0.02 / n) #this modified initialization seems to work better, but it's very hacky
-            #n = m.in_features
-            # m.weight.data.normal_(0, math.sqrt(2. / n)) #xavier
-            m.weight.data.normal_(0, 0.02)
-            if m.bias is not None:
-                m.bias.data.zero_()
-
-        if isinstance(m, nn.Conv2d):  # or isinstance(m, nn.ConvTranspose2d):
-            #n = m.kernel_size[0] * m.kernel_size[1] * m.in_channels
-            # m.weight.data.normal_(0, math.sqrt(2. / n)) #this modified initialization seems to work better, but it's very hacky
-            m.weight.data.normal_(0, 0.02)
-            if m.bias is not None:
-                m.bias.data.zero_()
-
-        if isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm3d):
-            m.weight.data.fill_(1)
-            m.bias.data.zero_()

@@ -60,7 +60,7 @@ def add_train_arguments(sub_parser: argparse.ArgumentParser):
     sub_parser.add_argument('--train.use_gt_cam', required=False, type=str2bool)
     sub_parser.add_argument('--train.num_cam_poses', required=False, type=int)
     sub_parser.add_argument('--train.use_sampled_cam', required=False, type=str2bool)
-    sub_parser.add_argument('--train.pose_warmup_epochs', required=False, type=int)
+    sub_parser.add_argument('--train.pose_warmup_step', required=False, type=int)
 
     sub_parser.add_argument('--train.loss.geometric', required=False, type=float)
     sub_parser.add_argument('--train.loss.visibility', required=False, type=float)
