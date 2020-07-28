@@ -35,6 +35,14 @@ class ITrainer:
         self.dataset = self._load_dataset()
         self.model = self._get_model()
         self._load_model(config.checkpoint)
+        total_num_params = 0
+        trainable_num_params = 0
+        for p in self.model.parameters():
+            total_num_params += p.numel()
+            if p.requires_grad:
+                trainable_num_params += p.numel()
+        print(
+            f"Total number of params: {total_num_params:.2E}\nTrainable number of params: {trainable_num_params:.2E}")
 
         self.data_loader = self._get_data_loader()
         self.optimizer = self._get_optimizer(config)
