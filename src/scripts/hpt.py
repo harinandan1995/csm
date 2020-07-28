@@ -9,21 +9,19 @@ from src.utils.config import ConfigParser
 
 
 def start_hpt(config_path, params, device):
+    """Start hyperparameter tuning for loss weights and whether to only use the mask loss for the warmup phase."""
 
     config = ConfigParser(config_path, params).config
 
     ax_client = AxClient()
 
     ax_client.create_experiment(
-        name="hartmann_test_experiment",
+        name="csm_loss_weights",
         parameters=[
             {
                 "name": "visibility",
                 "type": "range",
                 "bounds": [0.1, 5.0],
-                # Optional, defaults to inference from type of "bounds".
-                "value_type": "float",
-                "log_scale": False,  # Optional, defaults to False.
             },
             {
                 "name": "mask",
@@ -49,18 +47,11 @@ def start_hpt(config_path, params, device):
         objective_name="loss",
         minimize=True  # Optional, defaults to False.
     )
-    # l = os.listdir(config.train.out_dir)
-    # if not len(l):
-
-    #   config.train.out_dir = os.path.join(
-    #        config.train.out_dir, "0")
-    # else:
-
-    #   config.train.out_dir = os.path.join(
-    #      config.train.out_dir, l[-1])
 
     for i in range(20):
         parameters, trial_index = ax_client.get_next_trial()
+
+        # update loss weights accordingly
         config.train.loss.update(parameters)
 
         print(json.dumps(config, indent=3))
@@ -75,6 +66,7 @@ def start_hpt(config_path, params, device):
 
         loss = sum([visibility, mask, quat, geometric, arti])
         print(f"overall loss:  {loss}")
+
         # Local evaluation here can be replaced with deployment to external system.
         ax_client.complete_trial(trial_index=trial_index, raw_data={
             "visibility": (visibility.item(), 0.0),
