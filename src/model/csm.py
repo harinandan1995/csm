@@ -1,5 +1,6 @@
 import torch
 from pytorch3d.structures import Meshes
+from pytorch3d.renderer import OpenGLOrthographicCameras
 
 from src.model.articulation import Articulation, MultiArticulation
 from src.model.cam_predictor import CameraPredictor, MultiCameraPredictor
@@ -49,7 +50,7 @@ class CSM(torch.nn.Module):
         """
         super(CSM, self).__init__()
 
-        self.unet = UNet(4, 3)
+        self.unet = UNet(4, 3, num_downs=5)
         self.uv_to_3d = UVto3D(mean_shape)
         self.template_mesh = template_mesh
         self.renderer = MaskAndDepthRenderer(device=self.template_mesh.device)
@@ -152,6 +153,8 @@ class CSM(torch.nn.Module):
             "pred_depths": torch.flip(pred_depth, (-1, -2)),
             "pred_masks": torch.flip(pred_mask, (-1, -2)),
             "pred_z": pred_z,
+            "rotation": rotation,
+            "translation": translation,
             "uv_3d": uv_3d,
             "uv": uv
         }
@@ -255,14 +258,12 @@ class CSM(torch.nn.Module):
             uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(
                 batch_size*num_poses, -1, 3)
 
-        xyz = torch.bmm(uv_3d, rotation.view(-1, 3, 3)) + \
-              translation.view(-1, 1, 3)
-        xyz = xyz.view(batch_size, num_poses, height, width, 3)
+        cameras = OpenGLOrthographicCameras(device=sphere_points.device, R=rotation.view(-1, 3, 3), T=translation.view(-1, 3))
+        xyz_cam = cameras.get_world_to_view_transform().transform_points(uv_3d)
+        z = xyz_cam[:, :, 2:].view(batch_size, num_poses, height, width, 1)
+        xy = cameras.transform_points(uv_3d)[:, :, :2].view(batch_size, num_poses, height, width, 2)
 
-        xy = xyz[..., :2]
-        z = xyz[..., 2:]
-
-        xy = xy.permute(0, 1, 4, 2, 3)
+        xy = xy.permute(0, 1, 4, 2, 3).flip(2)
         z = z.permute(0, 1, 4, 2, 3)
         uv = uv.permute(0, 3, 1, 2)
         uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)[

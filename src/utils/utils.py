@@ -84,3 +84,5 @@ def add_kp_test_arguments(sub_parser: argparse.ArgumentParser):
     sub_parser.add_argument('-ck', '--test.checkpoint', required=False, type=str)
     sub_parser.add_argument('--test.alpha', required=False, type=float, nargs='+')
     sub_parser.add_argument('--test.add_summaries', required=False, type=str2bool)
+    
+    sub_parser.add_argument('--dataset.num_pairs', required=False, type=int)

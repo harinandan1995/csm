@@ -1,77 +1,118 @@
+import os
+import os.path as osp
+
+import numpy as np
 import torch
-from src.nnutils.blocks import *
+import torch.nn as nn
+
+from src.nnutils.blocks import conv2d, upconv2d, net_init
 
 
 class UNet(nn.Module):
     """
-    Module to use UNet with different layers
+    UNet model with skip connections
     """
-
-    def __init__(self, in_channels=3, out_channels=1, features=None, batch_norm=False):
+    
+    def __init__(self, input_nc, output_nc, num_downs, ngf=64, norm_layer=nn.modules.normalization.GroupNorm):
         """
-        Construct the architecture of UNet
-
-        :param in_channels: scalar (default 3 for GRB image)
-        :param out_channels: scalar (default 1)
-        :param features: list at most 5 elements (default [32,64,128,256,512])
-                   if the list has more than 5 elements, we only keep the first 5
-                   if the list has less than 5 elements, we extend the later layers with double features
-        ：param batch_norm: bool, whether we have batch normalization (default: false)
+        :param input_nc: Number of input channels
+        :param output_nc: Number of output channels
+        :param num_downs: Number of down samplings. If |num_downs| == 7, image of size 128x128 will become of size 1x1
+        :param ngf: Number of features of first downsampling. For each downsampling the number of features increase by 2 times.
         """
+
         super(UNet, self).__init__()
 
-        if features is None:
-            features = [32, 64, 128, 256, 512]
-        if len(features) > 5:
-            features = features[:5]
-        elif len(features) < 5:
-            while len(features) != 5:
-                features.append(features[-1] * 2)
+        if num_downs >= 5:
+            ngf_max = ngf*8
+        else:
+            ngf_max = ngf*pow(2, num_downs - 2)
 
-        self.encoder1 = double_conv(in_channels, features[0], batch_norm=batch_norm)
-        self.encoder2 = double_conv(features[0], features[1], batch_norm=batch_norm)
-        self.encoder3 = double_conv(features[1], features[2], batch_norm=batch_norm)
-        self.encoder4 = double_conv(features[2], features[3], batch_norm=batch_norm)
+        # construct unet structure
+        all_blocks = []
+        self.inner_most_block = unet_block = UnetSkipConnectionConcatBlock(ngf_max, ngf_max, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
+        all_blocks.append(unet_block)
 
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.bottleneck = double_conv(features[3], features[4], batch_norm=batch_norm)
+        for i in range(num_downs - 5):
+            unet_block = UnetSkipConnectionConcatBlock(ngf_max, ngf_max, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+            all_blocks.append(unet_block)
 
-        self.decoder4 = double_conv(features[4] + features[3], features[3], batch_norm=batch_norm)
-        self.decoder3 = double_conv(features[3] + features[2], features[2], batch_norm=batch_norm)
-        self.decoder2 = double_conv(features[2] + features[1], features[1], batch_norm=batch_norm)
-        self.decoder1 = double_conv(features[1] + features[0], features[0], batch_norm=batch_norm)
-        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        for i in range(min(3, num_downs - 2)):
+            unet_block = UnetSkipConnectionConcatBlock(ngf_max // pow(2,i+1), ngf_max // pow(2,i), input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+            all_blocks.append(unet_block)
 
-        self.conv = nn.Conv2d(
-            in_channels=features[0], out_channels=out_channels, kernel_size=1
-        )
+        unet_block = UnetSkipConnectionConcatBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)
+        all_blocks.append(unet_block)
+
+        self.model = unet_block
+        self.all_blocks = all_blocks
+        net_init(self.model)
+
+    def forward(self, input):
+        
+        return self.model(input)
+
+    def get_inner_most(self, ):
+        
+        return self.inner_most_block
+
+    def get_all_block(self, ):
+        
+        return self.all_blocks
+
+
+class UnetSkipConnectionConcatBlock(nn.Module):
+    """
+    Defines the submodule with skip connection.
+    X -------------------identity---------------------- X
+    |-- downsampling -- |submodule| -- upsampling --|
+    """
+    
+    def __init__(self, outer_nc, inner_nc, input_nc=None, submodule=None, outermost=False, 
+                innermost=False, norm_layer=nn.modules.normalization.GroupNorm):
+        """
+        :param outer_nc: Number of output channels
+        :param input_nv: Number of input channels
+        :param inner_nc: Number of intermediate channels
+        :param submodule: Submodule to be used after down and before up sampling
+        :param outermost: True or False. True if this is the outermost connection in the UNet
+        :param innermost: True of False. True if this is the innermost connection in the UNet
+        """
+        
+        super(UnetSkipConnectionConcatBlock, self).__init__()
+        self.outermost = outermost
+        self.innermost = innermost
+
+        use_bias = norm_layer == nn.InstanceNorm2d
+        if input_nc is None:
+            input_nc = outer_nc
+
+        downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4, stride=2, padding=1, bias=use_bias)
+    
+        if outermost:
+            self.down = [downconv]
+            self.up = [upconv2d(inner_nc * 2, inner_nc), nn.Conv2d(inner_nc, outer_nc, kernel_size=3, stride=1, padding=1, bias=True)]
+        elif innermost:
+            self.down = [conv2d(False, input_nc, inner_nc, kernel_size=4, stride=2)]
+            self.up = [upconv2d(inner_nc, outer_nc)]
+        else:
+            self.down = [conv2d(False, input_nc, inner_nc, kernel_size=4, stride=2)]
+            self.up = [upconv2d(inner_nc * 2, outer_nc)]
+            
+        self.up = nn.Sequential(*self.up)
+        self.down = nn.Sequential(*self.down)
+        self.submodule = submodule
 
     def forward(self, x):
-        """
-        pass the data forward the UNet
-
-        :param x: [D X W X H X C] or [D X W X H X 1] tensor
-        :return :  [D X W X H X 1] tensor
-        """
-        enc1 = self.encoder1(x)
-        enc2 = self.encoder2(self.pool(enc1))
-        enc3 = self.encoder3(self.pool(enc2))
-        enc4 = self.encoder4(self.pool(enc3))
-
-        bottleneck = self.bottleneck(self.pool(enc4))
-
-        dec4 = self.upsample(bottleneck)
-        dec4 = torch.cat((dec4, enc4), dim=1)
-        dec4 = self.decoder4(dec4)
-        dec3 = self.upsample(dec4)
-        dec3 = torch.cat((dec3, enc3), dim=1)
-        dec3 = self.decoder3(dec3)
-        dec2 = self.upsample(dec3)
-        dec2 = torch.cat((dec2, enc2), dim=1)
-        dec2 = self.decoder2(dec2)
-        dec1 = self.upsample(dec2)
-        dec1 = torch.cat((dec1, enc1), dim=1)
-        dec1 = self.decoder1(dec1)
-
-        return self.conv(dec1)
+        x_inp = x
+        self.x_enc = self.down(x_inp)
+        if self.submodule is not None:
+            out = self.submodule(self.x_enc)
+        else:
+            out = self.x_enc
+        self.x_dec = self.up(out)
+        if self.outermost:
+            return self.x_dec
+        else:
+            return torch.cat([x_inp, self.x_dec], 1)
