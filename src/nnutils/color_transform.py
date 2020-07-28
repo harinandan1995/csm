@@ -59,7 +59,7 @@ def draw_key_points(img, kps, colors, radius=5):
     """
     Draws key points on images
     :param img: A (B X 3 X H X W) tensor of images
-    :param kps: A (B X KP, 3) tensor containing indices of key points. Only those key point
+    :param kps: A (B X KP X 3) tensor containing indices of key points. Only those key point
         for which the value of the  last dim is 1 is drawn on the image
     :param colors: A (KP, 3) tensor of key point colors as RGB values (0-1)
     :return:

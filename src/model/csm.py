@@ -1,5 +1,6 @@
 import torch
 from pytorch3d.structures import Meshes
+from pytorch3d.renderer import OpenGLOrthographicCameras
 
 from src.model.articulation import Articulation, MultiArticulation
 from src.model.cam_predictor import CameraPredictor, MultiCameraPredictor
@@ -49,7 +50,7 @@ class CSM(torch.nn.Module):
         """
         super(CSM, self).__init__()
 
-        self.unet = UNet(4, 3)
+        self.unet = UNet(4, 3, num_downs=5)
         self.uv_to_3d = UVto3D(mean_shape)
         self.template_mesh = template_mesh
         self.renderer = MaskAndDepthRenderer(device=self.template_mesh.device)
@@ -152,6 +153,8 @@ class CSM(torch.nn.Module):
             "pred_depths": torch.flip(pred_depth, (-1, -2)),
             "pred_masks": torch.flip(pred_mask, (-1, -2)),
             "pred_z": pred_z,
+            "rotation": rotation,
+            "translation": translation,
             "uv_3d": uv_3d,
             "uv": uv
         }

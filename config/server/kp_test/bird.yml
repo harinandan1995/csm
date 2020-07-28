@@ -3,7 +3,7 @@ dataset:
   img_size: 256
   img_height: 320
   img_width: 512
-  split: 'train'
+  split: 'test'
   transform: 'flip'
   padding_frac: 0.05
   jitter_frac: 0.05
@@ -26,7 +26,7 @@ test:
   use_gt_cam: True
   num_cam_poses: 8
   use_sampled_cam: True
-  alpha: [0.05, 0.1, 0.2]
+  alpha: [0.08, 0.1, 0.13]
   checkpoint: ''
   add_summaries: True
   log:

@@ -22,12 +22,14 @@ class ITester:
 
         self.model = self._get_model()
         self._load_model(config.checkpoint)
+        self.model.eval()
 
         self.data_loader = self._get_data_loader()
 
         time = get_time()
         date = get_date()
-        self.summary_dir = osp.join(self.config.out_dir, date, time, 'summaries')
+        self.out_dir = osp.join(self.config.out_dir, date, time)
+        self.summary_dir = osp.join(self.out_dir, 'summaries')
         self.summary_writer = SummaryWriter(self.summary_dir)
 
     def test(self, **kwargs):
