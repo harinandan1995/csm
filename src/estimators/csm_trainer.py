@@ -63,7 +63,7 @@ class CSMTrainer(ITrainer):
         # Running losses to calculate mean loss per epoch for all types of losses
         self.running_loss = torch.tensor([0, 0, 0, 0, 0, 0], dtype=torch.float32)
         if self.config.use_gt_cam:
-            self.config.pose_warmup_epochs = 0
+            self.config.pose_warmup_step = 0
 
     def _calculate_loss(self, step, batch, epoch):
         """
@@ -93,7 +93,7 @@ class CSMTrainer(ITrainer):
         pred_out = self.model(img, mask, scale, trans, quat, epoch)
 
         loss = self._calculate_loss_for_predictions(
-            mask,  pred_out,   epoch < self.config.pose_warmup_epochs, epoch < self.config.arti_epochs)
+            mask,  pred_out,   (epoch*(step+1) + step) < self.config.pose_warmup_step, epoch < self.config.arti_epochs)
 
         return loss, pred_out
 
@@ -288,24 +288,30 @@ class CSMTrainer(ITrainer):
 
         self.summary_writer.add_images('%d/data/img' % epoch, img, sum_step)
         self.summary_writer.add_images('%d/data/mask' % epoch, mask, sum_step)
-    
-    def _add_pred_vis(self, uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step):
+
+    def _add_pred_vis(self, uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step, warmup):
         """
         Add predicted output (depth, uv, masks) visualizations to the tensorboard summaries
         """
-
-        uv_color, uv_blend = sample_uv_contour(img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
-        self.summary_writer.add_images('%d/pred/uv_blend' % epoch, uv_blend, sum_step)
-        self.summary_writer.add_images('%d/pred/uv' % epoch, uv_color * mask, sum_step)
-        
-        depth = (pred_depths - pred_depths.min()) / (pred_depths.max()-pred_depths.min())
-        self.summary_writer.add_images('%d/pred/depth' % epoch, depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
-        
-        z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
-        self.summary_writer.add_images('%d/pred/z' % epoch, z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
-
         self.summary_writer.add_images(
             '%d/pred/mask' % epoch, pred_masks.view(-1, 1, pred_masks.size(-2), pred_masks.size(-1)), sum_step)
+
+        depth = (pred_depths - pred_depths.min()) / \
+            (pred_depths.max()-pred_depths.min())
+        self.summary_writer.add_images(
+            '%d/pred/depth' % epoch, depth.view(-1, 1, depth.size(-2), depth.size(-1)), sum_step)
+
+        if not warmup:
+            uv_color, uv_blend = sample_uv_contour(
+                img, uv.permute(0, 2, 3, 1), self.texture_map, mask)
+            self.summary_writer.add_images(
+                '%d/pred/uv_blend' % epoch, uv_blend, sum_step)
+            self.summary_writer.add_images(
+                '%d/pred/uv' % epoch, uv_color * mask, sum_step)
+
+            z = (pred_z - pred_z.min()) / (pred_z.max() - pred_z.min())
+            self.summary_writer.add_images(
+                '%d/pred/z' % epoch, z.view(-1, 1, z.size(-2), z.size(-1)), sum_step)
 
     def _get_template_mesh_colors(self):
         """

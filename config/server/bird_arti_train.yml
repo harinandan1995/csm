@@ -28,7 +28,7 @@ train:
   use_sampled_cam: True
   use_arti: True
   num_cam_poses: 8
-  pose_warmup_epochs: 10
+  pose_warmup_step: 2000
   arti_epochs: 0
   log:
     image_summary_step: 50
