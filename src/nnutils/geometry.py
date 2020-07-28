@@ -60,7 +60,7 @@ def get_scaled_orthographic_projection(scale, trans, quat, transpose=False):
     Generate scaled orthographic projection matrices rotation and translation
     for the given scale, translation and rotation in quaternions
 
-    :param device: Device to store the output tensor default cuda
+    :param device: Device to store the output tensor, default: cuda
     :param scale: A [B] tensor with the scale values for the batch
     :param trans: A [B, 2] tensor with tx and ty values for the batch
     :param quat: A [B, 4] tensor with quaternion values for the batch
