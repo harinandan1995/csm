@@ -231,8 +231,10 @@ class CSMTrainer(ITrainer):
             # self._add_kp_summaries(rotation, translation, batch, epoch, sum_step)
             self._add_loss_vis(pred_positions, mask, epoch, sum_step)
             self._add_input_vis(img, mask, epoch, sum_step)
-            self._add_pred_vis(uv, pred_z, pred_depths, pred_masks, img, mask, epoch, sum_step)
-    
+            self._add_pred_vis(uv, pred_z, pred_depths, pred_masks, img, mask, epoch,
+                               sum_step, (epoch*(step+1) + step) < self.config.pose_warmup_step)
+            self.add_distr_vis(epoch, sum_step, pred_prob.clone().detach().cpu(), 0)
+
     def _add_kp_summaries(self, rotation, translation, batch, epoch, sum_step):
 
         img = batch['img'].to(self.device, dtype=torch.float)
@@ -318,3 +320,50 @@ class CSMTrainer(ITrainer):
         colors = colors.squeeze(2).permute(0, 2, 1) * 255
 
         return colors.to(torch.int)
+
+    def add_distr_vis(self, epoch, sum_step, probs, sample_idx):
+
+        sns.set(style="white", rc={"axes.facecolor": (0, 0, 0, 0)})
+
+        # Create the data
+        tiles = torch.arange(1, probs.size(0)+1)
+        batch = torch.repeat_interleave(tiles, probs.size(1))
+
+        num_hypo = torch.arange(1, probs.size(
+            1)+1, dtype=torch.int).repeat(probs.size(0))
+        probs = torch.flatten(probs)
+
+        df = pd.DataFrame(dict(probs=probs, batch=batch, num_hypo=num_hypo))
+
+        # Initialize the FacetGrid object
+        pal = sns.cubehelix_palette(10, rot=-.25, light=.7)
+        g = sns.FacetGrid(df, row="batch", hue="batch", aspect=2,
+                          height=2, palette=pal, margin_titles=True)
+
+        # Draw the densities in a few steps
+        #g.map(sns.kdeplot, "x", clip_on=False, shade=True, alpha=1, lw=1.5, bw=.2)
+        #g.map(sns.kdeplot, "x", clip_on=False, color="w", lw=2, bw=.2)
+        #g.map(plt.axhline, y=0, lw=2, clip_on=False)
+        g.map(sns.barplot, x="num_hypo", y="probs", data=df, ci=None)
+
+        # Define and use a simple function to label the plot in axes coordinates
+
+        # Remove axes details that don't play well with overlap
+        g.set_titles("")
+        # g.set(yticks=[])
+        g.despine(bottom=True, left=True)
+
+        fig = g.fig
+        # fig.savefig("out.png")
+
+        # If we haven't already shown or saved the plot, then we need to
+        # draw the figure first...
+        fig.canvas.draw()
+
+        # Now we can save it to a numpy array.
+        data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        data = np.moveaxis(data.reshape(1, *data.shape), -1, 1)
+        # print(data)
+        self.summary_writer.add_images(
+            "%d/pred/cam_hypo_probs" % epoch, data, sum_step)
