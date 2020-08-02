@@ -97,7 +97,7 @@ class CSM(torch.nn.Module):
         :param mask: A (B X 1 X H X W) tensor of input image
         :param scale: A (B X 1) tensor of input image
         :param trans: A (B X 2) tensor of translations (tx, ty)
-        :param quat: A (B X 3) tensor of quaternions
+        :param quat: A (B X 4) tensor of quaternions
         :return: A dictionary containing following values
             - pred_positions: A (B X CP X 2 X H X W) tensor containing predicted position of each pixel
                 after transforming them to 3D and then projecting back to image plane
