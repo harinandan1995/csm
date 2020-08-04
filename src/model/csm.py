@@ -51,13 +51,12 @@ class CSM(torch.nn.Module):
 
         self.unet = UNet(4, 3, num_downs=5)
         self.uv_to_3d = UVto3D(mean_shape)
-        self.renderer = MaskAndDepthRenderer(meshes=template_mesh)
+        self.template_mesh = template_mesh
+        self.renderer = MaskAndDepthRenderer(device=self.template_mesh.device)
 
         self.use_gt_cam = use_gt_cam
         self.use_sampled_cam = use_sampled_cam
         self.use_arti = use_arti
-
-        self.template_mesh = template_mesh
 
         if not self.use_gt_cam or self.use_arti:
             self.encoder = get_encoder(
@@ -81,7 +80,7 @@ class CSM(torch.nn.Module):
         self.device = device
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
-                scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor, epochs: int):
+                scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor, epochs: int = 0):
         """
         For the given img and mask
         - uses the unet to predict sphere coordinates
@@ -115,7 +114,7 @@ class CSM(torch.nn.Module):
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
         img_feats = None
-        if (self.use_arti and epochs >= self.arti_epochs) or not self.use_gt_cam:
+        if (self.use_arti and (epochs >= self.arti_epochs or not self.training)) or not self.use_gt_cam:
             img_feats = self.encoder(img)
             img_feats = img_feats.view(len(img_feats), -1)
 
@@ -128,13 +127,13 @@ class CSM(torch.nn.Module):
             index = torch.Tensor([0]).to(self.device)
 
         arti_verts = None
-        if self.use_arti and epochs >= self.arti_epochs:
+        if self.use_arti and (epochs >= self.arti_epochs or not self.training):
             arti_verts, arti_angle, arti_translation = self.arti(
                 img_feats, self.use_gt_cam, self.use_sampled_cam, cam_idx)
 
         # NOTE: we need N articulated meshes
         # The vertices output is [B x 1 x M(vertices number) x 3 if use_gt_cam or use_sampled_cam, otherwise it is [B x H x M x 3]
-        if self.use_arti and epochs >= self.arti_epochs:
+        if self.use_arti and (epochs >= self.arti_epochs or not self.training):
             meshes = self._articulate_meshes(arti_verts)
         else:
             meshes = self.template_mesh.extend(img.size(0) * self.num_cam_poses)

@@ -22,10 +22,11 @@ test:
   batch_size: 8
   shuffle: True
   workers: 8
-  out_dir: '/mnt/raid/csmteam/out'
+  out_dir: '/mnt/raid/csmteam/out/arti'
   use_gt_cam: True
   num_cam_poses: 8
   use_sampled_cam: True
+  use_arti: False
   alpha: [0.08, 0.1, 0.13]
   checkpoint: ''
   add_summaries: True

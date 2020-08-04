@@ -32,6 +32,7 @@ class ArticulationPredictor(nn.Module):
         self._num_feats = num_feats
         self._num_rots = num_rots
         self._num_trans = num_trans
+        self.device = device
         self.fc = nn.Sequential(
             nn.Linear(num_feats, num_feats),
             nn.LeakyReLU(),
@@ -65,10 +66,10 @@ class ArticulationPredictor(nn.Module):
             vec_rot[..., 1], vec_rot[..., 0]).unsqueeze(-1)
 
         ###############################################
-        angle0 = angle0.squeeze(0).squeeze(-1)
-        angle0 = torch.cat([torch.FloatTensor([0]).cuda(), angle0[1:]]).view(batch_size, self._num_parts, 1)
-        vec_tran = vec_tran.squeeze(0).squeeze(-1)
-        vec_tran = torch.cat([torch.FloatTensor([0,0,0]).cuda(), vec_tran[1:, ...]], dim=0).view(batch_size, self._num_parts, 3)
+        angle0_zero = torch.FloatTensor([0]).to(self.device).view(1,1,1).repeat(batch_size, self._num_parts,1)
+        angle0 = torch.cat([angle0_zero , angle0[:,1:, ...]] ,dim = 1).view(batch_size, self._num_parts, 1)
+        vec_tran_zero = torch.FloatTensor([0,0,0]).to(self.device).view(1,1,3).repeat(batch_size, self._num_parts,1)
+        vec_tran = torch.cat([vec_tran_zero, vec_tran[:,1:, ...]], dim= 1).view(batch_size, self._num_parts, 3)
         ###############################################
 
         angle = angle0.repeat(1, 1, 3)
