@@ -182,7 +182,7 @@ class ResNetConv(nn.Module):
         return x
 
 
-def get_encoder(trainable=False, num_in_chans: int = 3):
+def get_encoder(trainable=True, num_in_chans: int = 3):
     """
     Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
     Pre-trained layers are frozen.
