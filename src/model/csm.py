@@ -58,14 +58,19 @@ class CSM(torch.nn.Module):
         self.use_sampled_cam = use_sampled_cam
         self.use_arti = use_arti
 
-        if not self.use_gt_cam or self.use_arti:
-            self.encoder = get_encoder(
-                trainable=False, num_in_chans=num_in_chans)
+        # if not self.use_gt_cam or self.use_arti:
+        #     self.encoder = get_encoder(
+        #         trainable=False, num_in_chans=num_in_chans)
+        #
+        # if not self.use_gt_cam:
+        #     self.multi_cam_pred = MultiCameraPredictor(
+        #         num_hypotheses=num_cam_poses, device=template_mesh.device)
+        # else:
+        #     num_cam_poses = 1
+        self.encoder = get_encoder(trainable=False, num_in_chans=num_in_chans)
+        self.multi_cam_pred = MultiCameraPredictor(num_hypotheses=num_cam_poses, device=template_mesh.device)
 
-        if not self.use_gt_cam:
-            self.multi_cam_pred = MultiCameraPredictor(
-                num_hypotheses=num_cam_poses, device=template_mesh.device)
-        else:
+        if self.use_gt_cam:
             num_cam_poses = 1
 
         if self.use_arti:

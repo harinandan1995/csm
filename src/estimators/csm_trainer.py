@@ -151,12 +151,8 @@ class CSMTrainer(ITrainer):
     def _epoch_end_call(self, current_epoch, total_epochs, total_steps):
         # Save checkpoint after every 10 epochs
         if current_epoch % 5 == 0:
-            if not self.config.use_arti or current_epoch < self.config.arti_epochs:
-                self._save_model(osp.join(self.checkpoint_dir,
-                                         'model_%s_%d' % (get_time(), current_epoch)))
-            elif current_epoch >= self.config.arti_epochs:
-                self._save_model(osp.join(self.checkpoint_dir_arti,
-                                          'model_%s_%d' % (get_time(), current_epoch)))
+            self._save_model(osp.join(self.checkpoint_dir,
+                                      'model_%s_%d' % (get_time(), current_epoch)))
 
 
         self.running_loss = torch.true_divide(self.running_loss, total_steps)
