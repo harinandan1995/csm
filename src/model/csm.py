@@ -196,6 +196,14 @@ class CSM(torch.nn.Module):
         if not self.use_gt_cam:
             out['pred_poses'] = pred_poses
 
+        if self.use_arti and epochs >= self.arti_epochs:
+            out["pred_arti_translation"] = arti_translation
+            out["pred_arti_angle"] = arti_angle
+            arti_verts_s = arti_verts.detach().squeeze(0)
+            if len(arti_verts) > 1:
+                arti_verts_s = arti_verts_s[index, ...]
+            out["arti"]=arti_verts_s
+
         return out
 
     def _articulate_meshes(self, arti_verts: torch.Tensor):
@@ -307,14 +315,15 @@ class CSM(torch.nn.Module):
 
         return xy, z, uv, uv_3d
 
-    def _render(self, rotation: torch.Tensor, translation: torch.Tensor) -> (torch.Tensor, torch.Tensor):
+    def _render(self, rotation: torch.Tensor, translation: torch.Tensor, meshes: Meshes) -> (torch.Tensor, torch.Tensor):
 
         batch_size = rotation.size(0)
         cam_poses = rotation.size(1)
 
         pred_mask, pred_depth = self.renderer(
             rotation.view(-1, 3, 3),
-            translation.view(-1, 3))
+            translation.view(-1, 3),
+            meshes)
 
         height = pred_mask.size(1)
         width = pred_mask.size(2)
