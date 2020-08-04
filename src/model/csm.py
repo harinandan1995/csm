@@ -119,7 +119,7 @@ class CSM(torch.nn.Module):
             img_feats = img_feats.view(len(img_feats), -1)
 
         rotation, translation, pred_poses, cam_idx, prob = self._get_camera_extrinsics(
-            img_feats, scale, trans, quat)
+            img.size(0), scale, trans, quat)
 
         if not self.use_gt_cam:
             index = torch.argmax(prob)
@@ -228,9 +228,9 @@ class CSM(torch.nn.Module):
 
         return articulated_meshes
 
-    def _get_camera_extrinsics(self, img, scale, trans, quat):
+    def _get_camera_extrinsics(self, batch_size, scale, trans, quat):
 
-        batch_size = img.size(0)
+        #batch_size = img.size(0)
         pred_poses = None
         pred_prob = torch.FloatTensor([0]).to(self.device)
         sample_idx = 0
