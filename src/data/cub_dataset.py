@@ -15,6 +15,7 @@ class CubDataset(IDataset):
 
         super(CubDataset, self).__init__(config, device)
 
+        self.category = config.category
         self.img_dir = osp.join(config.dir.data_dir, 'images')
         self.anno = []
         self.anno_sfm = []
