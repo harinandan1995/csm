@@ -28,15 +28,20 @@ train:
   use_sampled_cam: True
   num_cam_poses: 8
   pose_warmup_epochs: 10
+  use_arti: False
+  arti_epochs: 100
   log:
     image_summary_step: 50
     image_epoch: 1
+    arti_epoch: 1
   loss:
     geometric: 1
     visibility: 1
     mask: 5
     diverse: 0.05
     quat: 0.1
+    arti: 10
+    arti_angle: 0.1
   optim:
     lr: 0.0001
     beta1: 0.9
