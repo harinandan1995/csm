@@ -29,7 +29,7 @@ class CSM(torch.nn.Module):
 
     def __init__(self, template_mesh: Meshes, mean_shape: dict,
                  use_gt_cam: bool = False, num_cam_poses: int = 8,
-                 use_sampled_cam=False, use_arti=False, arti_epochs=0, arti_mesh_info: dict = {}, num_in_chans: int = 3):
+                 use_sampled_cam=False, use_arti=False, arti_epochs=0, arti_mesh_info: dict = {}, num_in_chans: int = 3, device="cuda"):
         """
         :param template_mesh: A pytorch3d.structures.Meshes object which will used for
         rendering depth and mask for a given camera pose
@@ -76,6 +76,7 @@ class CSM(torch.nn.Module):
             num_cam_poses = 1
 
         self.num_cam_poses = num_cam_poses  # number of camera postion used in rendering for each image
+        self.device = device
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
                 scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor, epochs: int):
@@ -122,7 +123,7 @@ class CSM(torch.nn.Module):
         if not self.use_gt_cam:
             index = torch.argmax(prob)
         else:
-            index = 0
+            index = torch.Tensor([0]).to(self.device)
 
         arti_verts = None
         if self.use_arti and epochs >= self.arti_epochs:
@@ -222,7 +223,7 @@ class CSM(torch.nn.Module):
 
         batch_size = img.size(0)
         pred_poses = None
-        pred_prob = 0
+        pred_prob = torch.FloatTensor([0]).to(self.device)
         sample_idx = 0
         
         if self.use_gt_cam:
