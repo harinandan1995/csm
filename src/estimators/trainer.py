@@ -43,6 +43,7 @@ class ITrainer:
         date = get_date()
         self.summary_dir = osp.join(self.config.out_dir, date, time, 'summaries', 'train')
         self.checkpoint_dir = osp.join(self.config.out_dir, date, time, 'checkpoints')
+        self.checkpoint_dir_arti = osp.join(self.config.out_dir, date, time, 'checkpoints_arti')
         create_dir_if_not_exists(self.checkpoint_dir)
 
         self.summary_writer = SummaryWriter(self.summary_dir)
