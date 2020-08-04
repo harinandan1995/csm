@@ -57,6 +57,8 @@ class CSM(torch.nn.Module):
         self.use_sampled_cam = use_sampled_cam
         self.use_arti = use_arti
 
+        self.template_mesh = template_mesh
+
         if not self.use_gt_cam or self.use_arti:
             self.encoder = get_encoder(
                 trainable=False, num_in_chans=num_in_chans)
