@@ -14,7 +14,6 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/bird/map3.png'
-    template: '/mnt/raid/csmteam/datasets/cachedir/cub/model/mean_bird_fixed.obj'
     data_dir: '/mnt/raid/csmteam/datasets/CUB_200_2011'
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
 
@@ -27,6 +26,7 @@ test:
   num_cam_poses: 8
   use_sampled_cam: True
   use_arti: False
+  arti_epochs: 0
   alpha: [0.08, 0.1, 0.13]
   checkpoint: ''
   add_summaries: True

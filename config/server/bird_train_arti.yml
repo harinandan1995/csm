@@ -13,7 +13,6 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/bird/map3.png'
-    template: '/mnt/raid/csmteam/datasets/cachedir/cub/model/mean_bird_fixed.obj'
     data_dir: '/mnt/raid/csmteam/datasets/CUB_200_2011'
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
 

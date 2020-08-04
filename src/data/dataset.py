@@ -411,6 +411,7 @@ class KPDataset(Dataset):
         self.mean_shape = self.dataset.mean_shape
         self.texture_map = self.dataset.texture_map
         self.template_mesh = self.dataset.template_mesh
+        self.arti_info_mesh = self.dataset.arti_info_mesh
         self.kp_3d, self.kp_uv = self.dataset.kp_3d, self.dataset.kp_uv
         self.kp_names, self.kp_perm = self.dataset.kp_names, self.dataset.kp_perm
 

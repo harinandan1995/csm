@@ -32,7 +32,6 @@ class ArticulationPredictor(nn.Module):
         self._num_feats = num_feats
         self._num_rots = num_rots
         self._num_trans = num_trans
-        self.device = device
         self.fc = nn.Sequential(
             nn.Linear(num_feats, num_feats),
             nn.LeakyReLU(),
@@ -62,30 +61,17 @@ class ArticulationPredictor(nn.Module):
         vec_rot = vec[..., 0:(self._num_rots+1)]
         vec_tran = vec[..., self._num_rots:].unsqueeze(-1)
         vec_rot = F.normalize(vec_rot, dim=-1)
-        angle0 = torch.atan2(
-            vec_rot[..., 1], vec_rot[..., 0]).unsqueeze(-1)
-
-        ###############################################
-        angle0_zero = torch.FloatTensor([0]).to(self.device).view(1,1,1).repeat(batch_size, self._num_parts,1)
-        angle0 = torch.cat([angle0_zero , angle0[:,1:, ...]] ,dim = 1).view(batch_size, self._num_parts, 1)
-        vec_tran_zero = torch.FloatTensor([0,0,0]).to(self.device).view(1,1,3).repeat(batch_size, self._num_parts,1)
-        vec_tran = torch.cat([vec_tran_zero, vec_tran[:,1:, ...]], dim= 1).view(batch_size, self._num_parts, 3)
-        ###############################################
-
-        angle = angle0.repeat(1, 1, 3)
+        angle = torch.atan2(
+            vec_rot[..., 1], vec_rot[..., 0]).unsqueeze(-1).repeat(1, 1, 3)
         self.axis.data = F.normalize(self.axis, dim=-1).data
         axis = self.axis.unsqueeze(0).repeat(batch_size, 1, 1)
 
         axis = axis.view(-1, 3)
         angle = angle.view(-1, 3)
 
-        #print(axis)
-        #print(angle / np.pi * 180)
-
         R = so3_exponential_map(angle * axis)
         R = R.view(batch_size, self._num_parts, 3, 3)
-        angle0 = angle0.view(batch_size, self._num_parts, 1)
-        return R, vec_tran, angle0
+        return R, vec_tran, angle
 
 
 class Articulation(nn.Module):
@@ -157,12 +143,6 @@ class Articulation(nn.Module):
         batch_size = len(x)
 
         R, t, angle = self._predictor(x)
-
-        # TODO: Add translation for future
-        #if True:
-        #    t = torch.zeros(
-        #        [batch_size, self._num_parts, 3, 1]).to(self.device)
-
         t_net = t
 
         rotation_center = self._r_c.unsqueeze(
@@ -214,7 +194,7 @@ class Articulation(nn.Module):
 
         arti_verts = arti_verts.squeeze(-1)
         t_net = t_net.squeeze(-1)
-        angle.squeeze(-1)
+        angle = angle.squeeze(-1)
         #loss = t_net.pow(2).sum(-1).view(-1, self._num_parts).sum(-1)
 
         return arti_verts, angle, t_net
