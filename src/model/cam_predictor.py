@@ -15,7 +15,7 @@ class CameraPredictor(nn.Module):
     and translation vector based on an image.
     """
 
-    def __init__(self, num_in_chans=3, num_feats=512, encoder=None, scale_bias=1.0, scale_lr=0.05):
+    def __init__(self, num_feats=512, scale_bias=1.0, scale_lr=0.05):
         """
         :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
         :param encoder: An feature extractor of an image. If None, resnet18 will bes used.
@@ -26,15 +26,15 @@ class CameraPredictor(nn.Module):
         """
         super(CameraPredictor, self).__init__()
 
-        self.conv1 = nn.Conv2d(in_channels=num_in_chans,
-                               out_channels=3,
-                               kernel_size=1)
-
-        # allows us to use only one shared encoder for all camera hypotheses in the multi-cam predictor.
-        if not encoder:
-            self.encoder = get_encoder(trainable=False)
-        else:
-            self.encoder = encoder
+        # self.conv1 = nn.Conv2d(in_channels=num_in_chans,
+        #                        out_channels=3,
+        #                        kernel_size=1)
+        #
+        # # allows us to use only one shared encoder for all camera hypotheses in the multi-cam predictor.
+        # if not encoder:
+        #     self.encoder = get_encoder(trainable=False)
+        # else:
+        #     self.encoder = encoder
 
         self._num_feats = num_feats
 
@@ -65,8 +65,8 @@ class CameraPredictor(nn.Module):
             else:
                 [N x 8] tensor containing the above mentioned camera parameters in a tensor.
         """
-        x = self.conv1(x)
-        x = self.encoder(x)
+        # x = self.conv1(x)
+        # x = self.encoder(x)
         # convert NXCx1x1 tensor to a NXC vector
         x = x.view(-1, self._num_feats)
         x = self.fc(x)
@@ -95,12 +95,12 @@ class MultiCameraPredictor(nn.Module):
         :param kwargs: arguments which are passed through to the single camera predictors
         """
         super(MultiCameraPredictor, self).__init__()
-        _encoder = get_encoder(trainable=False)
+        # _encoder = get_encoder(trainable=False)
 
         self.num_hypotheses = num_hypotheses
 
         self.cam_preds = nn.ModuleList(
-            [CameraPredictor(encoder=_encoder, **kwargs) for _ in range(num_hypotheses)])
+            [CameraPredictor(**kwargs) for _ in range(num_hypotheses)])
 
         # taken from the original repo
         base_rotation = matrix_to_quaternion(
@@ -181,18 +181,4 @@ def vec_to_tuple(x):
     return scale, translate, quat, prob
 
 
-def get_encoder(trainable=False):
-    """
-    Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
-    Pre-trained layers are frozen.
-    :param trainable: bool. whether to train the resnet layers  
-    :return: Feature extractor from resnet18
-    """
 
-    resnet = torch.hub.load(
-        'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
-    encoder = nn.Sequential(*([*resnet.children()][:-1]))
-    if not trainable:
-        for param in encoder.parameters():
-            param.requires_grad = True
-    return encoder

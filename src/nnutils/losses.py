@@ -108,7 +108,7 @@ def quaternion_regularization_loss(quats: torch.tensor):
     device = quats.device
     num_cam_poses = quats.size(1)
 
-    if num_cam_poses == 0:
+    if num_cam_poses <= 1:
         return 0
 
     quat_perm = list(itertools.permutations(range(num_cam_poses), 2))
@@ -139,3 +139,29 @@ def diverse_loss(probs):
     entropy = entropy.sum(1).mean()
 
     return entropy
+
+
+def articulation_trans_loss(translation, reduction='mean'):
+    """
+    :param [B X 1 x P X 3] or [B X 8 x P X 3] translation  
+    :param reduction: 
+    :return: L2-loss for the translation
+    """
+    loss = translation.pow(2).sum(-1).sum(-1).mean(-1)
+    if reduction is "mean":
+        return loss.mean()
+    else:
+        return loss
+
+
+def articulation_angle_loss(translation, reduction='mean'):
+    """
+    :param [B X 1 x P] or [B X 8 x P] angle of rotation
+    :param reduction: 
+    :return: L2-loss for the translation
+    """
+    loss = translation.abs().sum(-1).mean(-1)
+    if reduction is "mean":
+        return loss.mean()
+    else:
+        return loss

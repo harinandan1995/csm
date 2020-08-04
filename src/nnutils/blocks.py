@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torchvision
 
@@ -61,7 +62,7 @@ def bilinear_init(kernel_size=4):
     return weights
 
 
-def net_init(net):
+def net_init(net, is_return = False):
     """
     Initializes model model weights depending on the type of the layer
 
@@ -100,6 +101,9 @@ def net_init(net):
         elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm3d):
             m.weight.data.fill_(1)
             m.bias.data.zero_()
+
+    if is_return:
+        return net
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
@@ -176,3 +180,29 @@ class ResNetConv(nn.Module):
             x = self.resnet.layer4(x)
 
         return x
+
+
+def get_encoder(trainable=False, num_in_chans: int = 3):
+    """
+    Loads resnet18 and extracts the pre-trained convolutional layers for feature extraction.
+    Pre-trained layers are frozen.
+    :param trainable: bool. whether to train the resnet layers.
+    :param num_in_chans: Number of input channels. E.g. 3 for an RGB image, 4 for image + mask etc.
+    :return: Feature extractor from resnet18 without classification head and one prepended 1x1 conv layer
+    """
+    conv1 = torch.nn.Conv2d(in_channels=num_in_chans,
+                            out_channels=3, kernel_size=1)
+    conv1 = net_init(conv1, True)
+    resnet = torch.hub.load(
+        'pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
+    encoder = nn.Sequential(conv1, *([*resnet.children()][:-1]))
+
+    if not trainable:
+        # freeze pretrained resnet layers
+        params = encoder.parameters()
+        # avoid freezing the first 1x1 conv layer
+        next(params)
+        for param in params:
+            param.requires_grad = False
+
+    return encoder
