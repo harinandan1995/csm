@@ -2,6 +2,7 @@ import torch
 from pytorch3d.structures import Meshes
 from pytorch3d.renderer import OpenGLOrthographicCameras
 from pytorch3d.transforms import euler_angles_to_matrix
+import numpy as np
 
 from src.model.cam_predictor import CameraPredictor, MultiCameraPredictor
 from src.model.articulation import Articulation, MultiArticulation
