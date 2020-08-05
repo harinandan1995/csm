@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch3d.structures import Meshes
 from pytorch3d.transforms import so3_exponential_map
+from src.nnutils.blocks import net_init
 import numpy as np
 
 class TreeNode:
@@ -43,6 +44,7 @@ class ArticulationPredictor(nn.Module):
             [1, 0, 0]).unsqueeze(0).repeat(num_parts, 1).to(device))
         if not axis_move:
             self.axis.requires_grad = False
+        net_init(self.fc)
 
     def forward(self, x):
         """
