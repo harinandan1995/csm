@@ -59,20 +59,20 @@ class ArticulationPredictor(nn.Module):
         vec = self.fc.forward(x)
 
         # convert NXC tensor to a NXPX3 vector
-        vec = vec.view(-1, self._num_parts, (self._num_rots + self._num_trans))
+        vec = vec.view(batch_size, self._num_parts, (self._num_rots + self._num_trans))
         vec_rot = vec[..., 0:(self._num_rots+1)]
-        vec_tran = vec[..., self._num_rots:].unsqueeze(-1)
+        vec_tran = vec[..., self._num_rots:]
         vec_rot = F.normalize(vec_rot, dim=-1)
         angle0 = torch.atan2(
-            vec_rot[..., 1], vec_rot[..., 0]).unsqueeze(-1).repeat(1, 1, 3)
+            vec_rot[..., 1], vec_rot[..., 0])
         self.axis.data = F.normalize(self.axis, dim=-1).data
         axis = self.axis.unsqueeze(0).repeat(batch_size, 1, 1)
 
         ###############################################
-        angle0 = angle0.squeeze(0).squeeze(-1)
-        angle = torch.cat([torch.FloatTensor([0]).cuda(), angle0[1:]]).view(batch_size, self._num_parts, 1)
-        vec_tran = vec_tran.squeeze(0).squeeze(-1)
-        vec_tran = torch.cat([torch.FloatTensor([0, 0, 0]).cuda(), vec_tran[1:, ...]], dim=0).view(batch_size,
+        angle0 = angle0.squeeze(0)
+        angle = torch.cat([torch.FloatTensor([0]).cuda(), angle0[1:]]).view(batch_size, self._num_parts, 1).repeat(1, 1, 3)
+        vec_tran = vec_tran.squeeze(0)
+        vec_tran = torch.cat([torch.FloatTensor([[0, 0, 0]]).cuda(), vec_tran[1:, ...]], dim=0).view(batch_size,
                                                                                                    self._num_parts, 3)
         ###############################################
 
