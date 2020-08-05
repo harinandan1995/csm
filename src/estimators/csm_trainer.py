@@ -169,12 +169,12 @@ class CSMTrainer(ITrainer):
         if self.config.use_arti:
             self.summary_writer.add_scalar('loss/arti_trans', self.running_loss[5], current_epoch)
             self.summary_writer.add_scalar('loss/arti_angle', self.running_loss[6], current_epoch)
-            # if current_epoch >= self.config.arti_epochs and \
-            #                         current_epoch % self.config.log.arti_epoch == 0:
-            #     self.summary_writer.add_mesh('%d/Template_overfitting' % current_epoch, self.verts,
-            #                                  faces=self.template_mesh.faces_packed().unsqueeze(0).repeat(
-            #                                      self.verts.size(0), 1, 1),
-            #                                  colors=self.template_mesh_colors)
+            if current_epoch >= self.config.arti_epochs and \
+                                    current_epoch % self.config.log.arti_epoch == 0:
+                self.summary_writer.add_mesh('%d/Template_overfitting' % current_epoch, self.verts,
+                                             faces=self.template_mesh.faces_packed().unsqueeze(0).repeat(
+                                                 self.verts.size(0), 1, 1),
+                                             colors=self.template_mesh_colors)
 
         self.running_loss = torch.zeros_like(self.running_loss)
 

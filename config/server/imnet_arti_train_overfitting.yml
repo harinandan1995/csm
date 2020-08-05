@@ -1,0 +1,48 @@
+dataset:
+  category: 'zebra'
+  img_size: 256
+  img_height: 320
+  img_width: 512
+  split: 'train'
+  transform: 'flip'
+  padding_frac: 0.05
+  jitter_frac: 0.05
+  flip: True
+  tight_crop: False
+  flip_train: True
+
+  dir:
+    texture: 'resources/color_maps/horse/map3.png'
+    template: '/mnt/raid/csmteam/datasets/cachedir/models/zebra/zebra.obj'
+    data_dir: '/mnt/raid/csmteam/datasets/ImageNet/overfitting'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir'
+
+train:
+  batch_size: 1
+  epochs: 2000
+  shuffle: True
+  workers: 16
+  checkpoint: ''
+  out_dir: '/mnt/raid/csmteam/out/arti'
+  use_gt_cam: False
+  use_sampled_cam: False
+  num_cam_poses: 1
+  pose_warmup_epochs: 0
+  use_arti: True
+  arti_epochs: 100
+  log:
+    image_summary_step: 50
+    image_epoch: 50
+    arti_epoch: 200
+  loss:
+    geometric: 1
+    visibility: 10
+    mask: 5
+    diverse: 0.05
+    quat: 0.1
+    arti: 10
+    arti_angle: 0.1
+  optim:
+    lr: 0.0001
+    beta1: 0.9
+    type: 'adam'
