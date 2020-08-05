@@ -24,7 +24,7 @@ train:
   workers: 16
   checkpoint: ''
   out_dir: '/mnt/raid/csmteam/out/arti/overfitting'
-  use_gt_cam: False
+  use_gt_cam: True
   use_sampled_cam: False
   num_cam_poses: 1
   pose_warmup_epochs: 0
