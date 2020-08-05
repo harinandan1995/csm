@@ -74,7 +74,8 @@ class ImnetDataset(IDataset):
 
         # Load the annotation file.
         print('Loading imagenet annotations from %s' % anno_path)
-        self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
+        self.anno = np.array([sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']], dtype=object)
+        #self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
         self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
 
         model_dir = osp.join(self.config.dir.cache_dir, 'models', '%s' % self.category)
