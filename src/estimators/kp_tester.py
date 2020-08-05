@@ -211,10 +211,10 @@ class KPTransferTester(ITester):
         pred_kp_img2 = draw_key_points(img2, pred_kp12, self.key_point_colors)
 
         if merge:
-            self.summary_writer.add_images('merged/kp12', torch.cat((kp_img1, pred_kp_img2), dim=2), step)
-            self.summary_writer.add_images('merged/kp21', torch.cat((kp_img2, pred_kp_img1), dim=2), step)
-            self.summary_writer.add_images('merged/orig1', kp_img1, step)
-            self.summary_writer.add_images('merged/orig2', kp_img2, step)
+            self.summary_writer.add_images('%d/merged/kp12' % step, torch.cat((kp_img1, pred_kp_img2), dim=2), step)
+            self.summary_writer.add_images('%d/merged/kp21' % step, torch.cat((kp_img2, pred_kp_img1), dim=2), step)
+            self.summary_writer.add_images('%d/merged/orig1'% step, kp_img1, step)
+            self.summary_writer.add_images('%d/merged/orig2'% step, kp_img2, step)
         else:
             self.summary_writer.add_images('src', kp_img1, step)
             self.summary_writer.add_images('tar/orig', kp_img2, step)
@@ -237,9 +237,9 @@ class KPTransferTester(ITester):
 
         if merge:
             self.summary_writer.add_images(
-                'merged/uv_blend', torch.cat((src_uv_blend, tar_uv_blend), dim=2), step)
+                '%d/merged/uv_blend' % step, torch.cat((src_uv_blend, tar_uv_blend), dim=2), step)
             self.summary_writer.add_images(
-                'merged/uv', torch.cat((src_uv_color * src_mask, tar_uv_color * tar_mask), dim=2), step)
+                '%d/merged/uv' % step, torch.cat((src_uv_color * src_mask, tar_uv_color * tar_mask), dim=2), step)
         else:
             self.summary_writer.add_images('src/uv_blend', src_uv_blend, step)
             self.summary_writer.add_images('src/uv', src_uv_color * src_mask, step)
