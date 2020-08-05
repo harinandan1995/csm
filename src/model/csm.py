@@ -136,6 +136,7 @@ class CSM(torch.nn.Module):
 
         arti_verts = None
         if self.use_arti and (epochs >= self.arti_epochs or not self.training):
+            print(True)
             arti_verts, arti_angle, arti_translation = self.arti(
                 img_feats, self.use_gt_cam, self.use_sampled_cam, cam_idx)
 
