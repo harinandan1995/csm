@@ -52,6 +52,7 @@ class CSM(torch.nn.Module):
         self.unet = UNet(4, 3, num_downs=5)
         self.uv_to_3d = UVto3D(mean_shape)
         self.template_mesh = template_mesh
+        self.template_mesh2 =
         self.renderer = MaskAndDepthRenderer(device=self.template_mesh.device)
 
         self.use_gt_cam = use_gt_cam
@@ -78,6 +79,7 @@ class CSM(torch.nn.Module):
         #     self.arti_epochs = arti_epochs
         #     self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
         #                                   device=template_mesh.device, **arti_mesh_info)
+
         arti_mesh_info["template_mesh"] = template_mesh
         self.arti_epochs = arti_epochs
         self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
