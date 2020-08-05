@@ -1,6 +1,7 @@
 import torch
 from pytorch3d.structures import Meshes
 from pytorch3d.renderer import OpenGLOrthographicCameras
+from pytorch3d.transforms import euler_angles_to_matrix
 
 from src.model.cam_predictor import CameraPredictor, MultiCameraPredictor
 from src.model.articulation import Articulation, MultiArticulation
@@ -148,6 +149,10 @@ class CSM(torch.nn.Module):
         else:
             meshes = self.template_mesh.extend(img.size(0) * self.num_cam_poses)
 
+        euler = euler_angles_to_matrix(torch.FloatTensor([0, -np.pi / 2, np.pi / 2]).cuda(), "XYZ")
+        rotation = euler.unsqueeze(0).unsqueeze(0)
+        translation = torch.FloatTensor([0, -0.1370, 5.0000]).unsqueeze(0).unsqueeze(0).cuda()
+
         # Project the sphere points onto the template and project them back to image plane
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
             sphere_points, rotation, translation, arti_verts, index)
@@ -176,42 +181,6 @@ class CSM(torch.nn.Module):
 
         return out
 
-        sphere_points = self.unet(torch.cat((img, mask), 1))
-        sphere_points = torch.tanh(sphere_points)
-        sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
-
-        rotation, translation, pred_poses = self._get_camera_extrinsics(img, scale, trans, quat)
-
-        # Project the sphere points onto the template and project them back to image plane
-        pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
-            sphere_points, rotation, translation)
-
-        # Render depth and mask of the template for the cam pose
-        pred_mask, pred_depth = self._render(rotation, translation)
-
-        out = {
-            "pred_positions": pred_pos,
-            "pred_depths": torch.flip(pred_depth, (-1, -2)),
-            "pred_masks": torch.flip(pred_mask, (-1, -2)),
-            "pred_z": pred_z,
-            "rotation": rotation,
-            "translation": translation,
-            "uv_3d": uv_3d,
-            "uv": uv
-        }
-
-        if not self.use_gt_cam:
-            out['pred_poses'] = pred_poses
-
-        if self.use_arti and epochs >= self.arti_epochs:
-            out["pred_arti_translation"] = arti_translation
-            out["pred_arti_angle"] = arti_angle
-            arti_verts_s = arti_verts.detach().squeeze(0)
-            if len(arti_verts) > 1:
-                arti_verts_s = arti_verts_s[index, ...]
-            out["arti"]=arti_verts_s
-
-        return out
 
     def _articulate_meshes(self, arti_verts: torch.Tensor):
         """Method to 'apply' articulation to template mesh by creating new meshes with transformed vertices and the faces from the template mesh.
