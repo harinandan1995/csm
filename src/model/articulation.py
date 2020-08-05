@@ -73,6 +73,10 @@ class ArticulationPredictor(nn.Module):
 
         R = so3_exponential_map(angle * axis)
         R = R.view(batch_size, self._num_parts, 3, 3)
+        print("\ntranslation:\n")
+        print(vec_tran)
+        print("\nangle:\n")
+        print(angle)
         return R, vec_tran, angle
 
 
