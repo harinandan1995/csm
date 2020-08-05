@@ -73,7 +73,7 @@ class ArticulationPredictor(nn.Module):
         angle = torch.cat([torch.FloatTensor([0]).cuda(), angle0[1:]]).view(batch_size, self._num_parts, 1).repeat(1, 1, 3)
         vec_tran = vec_tran.squeeze(0)
         vec_tran = torch.cat([torch.FloatTensor([[0, 0, 0]]).cuda(), vec_tran[1:, ...]], dim=0).view(batch_size,
-                                                                                                   self._num_parts, 3)
+                                                                                                   self._num_parts, 3, 1)
         ###############################################
 
         axis = axis.view(-1, 3)
