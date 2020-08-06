@@ -15,10 +15,10 @@ dataset:
     texture: 'resources/color_maps/bird/map3.png'
     template: '/mnt/raid/csmteam/datasets/cachedir/models/bird/bird.obj'
     data_dir: '/mnt/raid/csmteam/datasets/CUB_200_2011'
-    cache_dir: '/mnt/raid/csmteam/datasets/cachedir'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
 
 train:
-  batch_size: 16
+  batch_size: 8
   epochs: 200
   shuffle: True
   workers: 16
@@ -30,6 +30,7 @@ train:
   num_cam_poses: 8
   pose_warmup_step: 2000
   arti_epochs: 0
+  scale_bias: 1.5 
   log:
     image_summary_step: 50
     image_epoch: 1

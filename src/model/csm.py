@@ -30,7 +30,7 @@ class CSM(torch.nn.Module):
 
     def __init__(self, template_mesh: Meshes, mean_shape: dict,
                  use_gt_cam: bool = False, num_cam_poses: int = 8,
-                 use_sampled_cam=False, use_arti=False, arti_epochs=0, arti_mesh_info: dict = {}, num_in_chans: int = 3):
+                 use_sampled_cam=False, use_arti=False, arti_epochs=0, arti_mesh_info: dict = {}, num_in_chans: int = 3, scale_bias: float = 1.):
         """
         :param template_mesh: A pytorch3d.structures.Meshes object which will used for
         rendering depth and mask for a given camera pose
@@ -66,7 +66,7 @@ class CSM(torch.nn.Module):
 
         if not self.use_gt_cam:
             self.multi_cam_pred = MultiCameraPredictor(
-                num_hypotheses=num_cam_poses, device=template_mesh.device)
+                num_hypotheses=num_cam_poses, device=template_mesh.device, scale_bias=scale_bias)
         else:
             num_cam_poses = 1
 
@@ -264,10 +264,12 @@ class CSM(torch.nn.Module):
             uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(
                 batch_size*num_poses, -1, 3)
 
-        cameras = OpenGLOrthographicCameras(device=sphere_points.device, R=rotation.view(-1, 3, 3), T=translation.view(-1, 3))
+        cameras = OpenGLOrthographicCameras(
+            device=sphere_points.device, R=rotation.view(-1, 3, 3), T=translation.view(-1, 3))
         xyz_cam = cameras.get_world_to_view_transform().transform_points(uv_3d)
         z = xyz_cam[:, :, 2:].view(batch_size, num_poses, height, width, 1)
-        xy = cameras.transform_points(uv_3d)[:, :, :2].view(batch_size, num_poses, height, width, 2)
+        xy = cameras.transform_points(uv_3d)[:, :, :2].view(
+            batch_size, num_poses, height, width, 2)
 
         xy = xy.permute(0, 1, 4, 2, 3).flip(2)
         z = z.permute(0, 1, 4, 2, 3)
