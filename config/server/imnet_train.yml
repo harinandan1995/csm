@@ -25,7 +25,7 @@ train:
   checkpoint: ''
   out_dir: '/mnt/raid/csmteam/out/cam_hypo_debug'
   use_gt_cam: False
-  use_sampled_cam: False
+  use_sampled_cam: True
   use_arti: False
   num_cam_poses: 8
   pose_warmup_step: 2000

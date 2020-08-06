@@ -138,6 +138,7 @@ class CSMTrainer(ITrainer):
         pred_positions = pred_out['pred_positions']
 
         loss = torch.zeros_like(self.running_loss)
+        # loss = torch.zeros_like(self.running_loss, requires_grad = True)
 
         prob_coeffs = None
         if not self.config.use_gt_cam and not self.config.use_sampled_cam:
@@ -199,8 +200,10 @@ class CSMTrainer(ITrainer):
             self.summary_writer.add_scalar(
                 'loss/quat', self.running_loss[4], current_epoch)
 
-        if current_epoch != (total_epochs-1):
-            self.running_loss = torch.zeros_like(self.running_loss)
+        if self.config.use_arti:
+            self.summary_writer.add_scalar('loss/arti_translation', self.running_loss[5], current_epoch)
+
+        self.running_loss = torch.zeros_like(self.running_loss)
 
     def _batch_end_call(self, batch, loss, out, step, total_steps, epoch, total_epochs):
 
