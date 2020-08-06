@@ -76,6 +76,8 @@ class ArticulationPredictor(nn.Module):
                                                                                                    self._num_parts, 3, 1)
         ###############################################
 
+        print(angle[...,0].squeeze(0))
+        print(vec_tran.squeeze(0))
         axis = axis.view(-1, 3)
         angle = angle.view(-1, 3)
 
