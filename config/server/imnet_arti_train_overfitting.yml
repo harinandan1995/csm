@@ -31,9 +31,9 @@ train:
   use_arti: True
   arti_epochs: 100
   log:
-    image_summary_step: 50
-    image_epoch: 50
-    arti_epoch: 50
+    image_summary_step: 25
+    image_epoch: 25
+    arti_epoch: 25
   loss:
     geometric: 1
     visibility: 10
