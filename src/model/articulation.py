@@ -44,7 +44,7 @@ class ArticulationPredictor(nn.Module):
             [1, 0, 0]).unsqueeze(0).repeat(num_parts, 1).to(device))
         if not axis_move:
             self.axis.requires_grad = False
-        net_init(self.fc)
+        #net_init(self.fc)
 
     def forward(self, x):
         """
