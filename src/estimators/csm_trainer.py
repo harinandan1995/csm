@@ -78,18 +78,16 @@ class CSMTrainer(ITrainer):
         self.summary_writer.add_mesh('Template', self.template_mesh.verts_packed().unsqueeze(0),
                                      faces=self.template_mesh.faces_packed().unsqueeze(0),
                                      colors=template_mesh_colors)
-        self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
+        self.key_point_colors = np.random.uniform(
+            0, 1, (len(self.dataset.kp_names), 3))
 
         # Running losses to calculate mean loss per epoch for all types of losses
-        self.running_loss = torch.tensor([0, 0, 0, 0, 0, 0], dtype=torch.float32)
+        self.running_loss = torch.tensor(
+            [0, 0, 0, 0, 0, 0], dtype=torch.float32)
         if self.config.use_gt_cam:
             self.config.pose_warmup_step = 0
 
-    def train(self, **kwargs):
-        super(CSMTrainer, self).train(**kwargs)
-
-        # return last loss for evaluation purposes
-        return self.running_loss
+        self.pose_warmup = not self.config.use_gt_cam and not self.config.checkpoint  # no pose warmup with gt cam
 
     def _calculate_loss(self, step, batch, epoch):
         """
@@ -118,12 +116,11 @@ class CSMTrainer(ITrainer):
 
         pred_out = self.model(img, mask, scale, trans, quat, epoch)
 
-        loss = self._calculate_loss_for_predictions(
-            mask,  pred_out,   (epoch*(step+1) + step) < self.config.pose_warmup_step, epoch < self.config.arti_epochs)
+        loss = self._calculate_loss_for_predictions(mask,  pred_out,   epoch < self.config.arti_epochs)
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict,  pose_warmup: bool = False, not_arti: bool = True) -> torch.tensor:
+    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, not_arti: bool = True) -> torch.tensor:
         """Calculates the loss from the output
 
         :param mask: (B X 1 X H X W) foreground mask
@@ -132,10 +129,11 @@ class CSMTrainer(ITrainer):
         :return: The computed loss from the output for the batch
         """
 
-        pred_z = pred_out['pred_z']
+        if not self.pose_warmup:
+            pred_z = pred_out['pred_z']
+            pred_positions = pred_out['pred_positions']
         pred_masks = pred_out['pred_masks']
         pred_depths = pred_out['pred_depths']
-        pred_positions = pred_out['pred_positions']
 
         loss = torch.zeros_like(self.running_loss)
         # loss = torch.zeros_like(self.running_loss, requires_grad = True)
@@ -146,11 +144,11 @@ class CSMTrainer(ITrainer):
             # TOOD: why?
             prob_coeffs = torch.add(prob_coeffs, 0.1)
 
-        if self.config.loss.geometric > 0 and not pose_warmup:
+        if self.config.loss.geometric > 0 and not self.pose_warmup:
             loss[0] = self.config.loss.geometric * geometric_cycle_consistency_loss(
                 self.gt_2d_pos_grid, pred_positions, mask, coeffs=prob_coeffs)
 
-        if self.config.loss.visibility > 0 and not pose_warmup:
+        if self.config.loss.visibility > 0 and not self.pose_warmup:
             loss[1] = self.config.loss.visibility * visibility_constraint_loss(
                 pred_depths, pred_z, mask, coeffs=prob_coeffs)
 
@@ -160,10 +158,10 @@ class CSMTrainer(ITrainer):
                 loss[2] = self.config.loss.mask * \
                     mask_reprojection_loss(
                         mask, pred_masks, coeffs=prob_coeffs)
-            if self.config.loss.diverse > 0 and (not pose_warmup or not self.config.loss.get("mask_only", True)):
+            if self.config.loss.diverse > 0 and (not self.pose_warmup or not self.config.loss.get("mask_only", True)):
                 loss[3] = self.config.loss.diverse * diverse_loss(pred_prob)
 
-            if self.config.loss.quat > 0 and (not pose_warmup or not self.config.loss.get("mask_only", True)):
+            if self.config.loss.quat > 0 and (not self.pose_warmup or not self.config.loss.get("mask_only", True)):
                 loss[4] = self.config.loss.quat * \
                     quaternion_regularization_loss(pred_quat)
 
@@ -208,6 +206,10 @@ class CSMTrainer(ITrainer):
     def _batch_end_call(self, batch, loss, out, step, total_steps, epoch, total_epochs):
 
         self._add_summaries(step, epoch, out, batch)
+        if self.pose_warmup and (epoch*total_steps+step) > self.config.pose_warmup_step:
+            # you should reach this block only once
+            self.pose_warmup = False
+            print("\nPose warmup done.\n")
 
     def _load_dataset(self) -> torch.utils.data.Dataset:
         """
@@ -240,13 +242,13 @@ class CSMTrainer(ITrainer):
 
         model = CSM(self.dataset.template_mesh, self.dataset.mean_shape, self.config.use_gt_cam,
                     self.config.num_cam_poses, self.config.use_sampled_cam, self.config.use_arti,
-                    self.config.arti_epochs, self.dataset.arti_info_mesh,self.config.scale_bias).to(self.device)
+                    self.config.arti_epochs, self.dataset.arti_info_mesh, self.config.get("num_in_chans", 3), self.config.scale_bias).to(self.device)
 
         return model
 
     def _add_summaries(self, step, epoch, out, batch):
         """
-        Adds image summaries to the summary writer
+        Adds image summaries to the summary writer. Called after every batch.
 
         :param step: Current optimization step number (Batch number)
         :param epoch: Current epoch
@@ -254,15 +256,16 @@ class CSMTrainer(ITrainer):
         :param batch: A dictionary containing the batched inputs to the model
         """
 
-        uv = out['uv']
-        pred_z = out['pred_z']
+        # use get, because they are None during pose warmup
+        uv = out.get('uv')
+        pred_z = out.get('pred_z')
+        pred_positions = out.get('pred_positions')
+
         pred_masks = out['pred_masks']
         pred_depths = out['pred_depths']
-        pred_positions = out['pred_positions']
         rotation = out['rotation']
         translation = out['translation']
-        # last element of tuple contains probabilities
-        pred_prob = out['pred_poses'][-1]
+
 
         img = batch['img'].to(self.device, dtype=torch.float)
         mask = batch['mask'].unsqueeze(1).to(self.device, dtype=torch.float)
@@ -272,12 +275,16 @@ class CSMTrainer(ITrainer):
         if step % self.config.log.image_summary_step == 0 and epoch % self.config.log.image_epoch == 0:
 
             # self._add_kp_summaries(rotation, translation, batch, epoch, sum_step)
-            self._add_loss_vis(pred_positions, mask, epoch, sum_step)
-            self._add_input_vis(img, mask, epoch, sum_step)
+            if not self.pose_warmup:
+                self._add_loss_vis(pred_positions, mask, epoch, sum_step)
             self._add_pred_vis(uv, pred_z, pred_depths, pred_masks, img, mask, epoch,
-                               sum_step, (epoch*(step+1) + step) < self.config.pose_warmup_step)
-            self.add_distr_vis(
-                epoch, sum_step, pred_prob.clone().detach().cpu(), 0)
+                               sum_step, self.pose_warmup)
+            self._add_input_vis(img, mask, epoch, sum_step)
+            if not self.config.use_gt_cam:
+                # last element of tuple contains probabilities
+                pred_prob = out['pred_poses'][-1]
+                self._add_distr_vis(
+                    epoch, sum_step, pred_prob.clone().detach().cpu(), 0)
 
     def _add_kp_summaries(self, rotation, translation, batch, epoch, sum_step):
 
