@@ -18,7 +18,7 @@ class CameraPredictor(nn.Module):
     and translation vector based on an image.
     """
 
-    def __init__(self,  num_feats=100, scale_bias=1., scale_lr=0.05):
+    def __init__(self,  num_feats=100, scale_bias=1., scale_lr=0.2):
         """
         :param encoder: An feature extractor of an image. If None, resnet18 will bes used.
         :param num_feats: The number of extracted features from the encoder.
