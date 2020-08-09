@@ -383,40 +383,31 @@ class CSMTrainer(ITrainer):
 
         return colors.to(torch.int)
 
-    def add_distr_vis(self, epoch, sum_step, probs, sample_idx):
+    def _add_distr_vis(self, epoch, sum_step, probs, sample_idx):
 
-        sns.set(style="white", rc={"axes.facecolor": (0, 0, 0, 0)})
+        n = probs.size(0)
+        m = probs.size(1)
 
-        # Create the data
-        tiles = torch.arange(1, probs.size(0)+1)
-        batch = torch.repeat_interleave(tiles, probs.size(1))
+        # Set up the matplotlib figure
+        f, axes = plt.subplots(1, n, figsize=(n*5, 5), sharey=True)
 
-        num_hypo = torch.arange(1, probs.size(
-            1)+1, dtype=torch.int).repeat(probs.size(0))
-        probs = torch.flatten(probs)
+        # Generate some sequential data
+        x = np.arange(m)
 
-        df = pd.DataFrame(dict(probs=probs, batch=batch, num_hypo=num_hypo))
+        for i in range(n):
+            ax = axes[i]
+            y = probs[i]
+            sns.barplot(x=x, y=y, palette=sns.hls_palette(
+                1,  h=i/n, l=1/(2+i)), ax=ax)
+            ax.axhline(0, color="k", clip_on=False)
+            ax.set_xlabel(f"Batch {i+1}")
 
-        # Initialize the FacetGrid object
-        pal = sns.cubehelix_palette(10, rot=-.25, light=.7)
-        g = sns.FacetGrid(df, row="batch", hue="batch", aspect=2,
-                          height=2, palette=pal, margin_titles=True)
+        # Finalize the plot
+        sns.despine(bottom=True, left=True)
+        plt.tight_layout(h_pad=2)
 
-        # Draw the densities in a few steps
-        #g.map(sns.kdeplot, "x", clip_on=False, shade=True, alpha=1, lw=1.5, bw=.2)
-        #g.map(sns.kdeplot, "x", clip_on=False, color="w", lw=2, bw=.2)
-        #g.map(plt.axhline, y=0, lw=2, clip_on=False)
-        g.map(sns.barplot, x="num_hypo", y="probs", data=df, ci=None)
-
-        # Define and use a simple function to label the plot in axes coordinates
-
-        # Remove axes details that don't play well with overlap
-        g.set_titles("")
-        # g.set(yticks=[])
-        g.despine(bottom=True, left=True)
-
-        fig = g.fig
-        # fig.savefig("out.png")
+        fig = f
+        fig.savefig("out.png")
 
         # If we haven't already shown or saved the plot, then we need to
         # draw the figure first...
@@ -426,6 +417,6 @@ class CSMTrainer(ITrainer):
         data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         data = np.moveaxis(data.reshape(1, *data.shape), -1, 1)
-        # print(data)
+
         self.summary_writer.add_images(
             "%d/pred/cam_hypo_probs" % epoch, data, sum_step)
