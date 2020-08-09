@@ -110,6 +110,7 @@ def quaternion_regularization_loss(quats: torch.tensor):
 
     if num_cam_poses <= 1:
         return 0
+    quat_perm = list(itertools.permutations(range(num_cam_poses), 2))
 
     quat_perm = torch.tensor(quat_perm, dtype=torch.long).to(device).permute(1, 0)
 
@@ -136,7 +137,7 @@ def diverse_loss(probs):
     # compute negative entropy, which should be minimized in order to maximize entropy
     entropy = torch.log(probs + 1E-9) * probs
     # shift enrtopy above zero to allow proper hpt
-    entropy +=1
+    entropy += 1
     entropy = entropy.sum(1).mean()
     return entropy
 
