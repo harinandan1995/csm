@@ -18,28 +18,30 @@ dataset:
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
 
 train:
-  batch_size: 8
-  epochs: 200
+  batch_size: 12
+  epochs: 400
   shuffle: True
   workers: 16
   checkpoint: ''
-  out_dir: '/mnt/raid/csmteam/out'
+  out_dir: '/mnt/raid/csmteam/out/bird'
   use_gt_cam: False
   use_sampled_cam: True
   use_arti: False
+  num_in_chans: 3
   num_cam_poses: 8
   pose_warmup_step: 2000
   arti_epochs: 0
   scale_bias: 1.5 
   log:
     image_summary_step: 50
-    image_epoch: 1
+    image_epoch: 5
   loss:
-    geometric: 1
-    visibility: 1
-    mask: 5
-    diverse: 0.05
+    geometric: 3.
+    visibility: 4.
+    mask: 2.
+    diverse: 0.01
     quat: 0.1
+    arti: 1.
   optim:
     lr: 0.0001
     beta1: 0.9
