@@ -18,7 +18,7 @@ class CameraPredictor(nn.Module):
     and translation vector based on an image.
     """
 
-    def __init__(self,  num_feats=100, scale_bias=1., scale_lr=0.2):
+    def __init__(self, num_feats: int = 100, scale_bias: float = 1., scale_lr: float = 0.2):
         """
         :param encoder: An feature extractor of an image. If None, resnet18 will bes used.
         :param num_feats: The number of extracted features from the encoder.
@@ -47,10 +47,11 @@ class CameraPredictor(nn.Module):
 
         net_init(self)
 
-    def forward(self, img_feats: torch.Tensor, as_vec: bool = False) -> Union[torch.Tensor, Tuple[Any, Any, Any, Any]]:
+    def forward(self, img_feats: torch.FloatTensor, as_vec: bool = False) -> torch.FloatTensor:
         """
         Predicts the camera pose represented by a 3-tuple of scale factor, translation vector and quaternions
-        representing the rotation to an input image :param x.
+        representing the rotation to an input image features x.
+
         :param img_feats: [N x F] input tensor containing batch_size number of encoded features from the input images.
             N = batch size
             F = number of features
@@ -87,7 +88,6 @@ class CameraPredictor(nn.Module):
 
 
 class MultiCameraPredictor(nn.Module):
-
     """Module for predicting a set of camera poses and a corresponding probabilities."""
 
     def __init__(self, num_hypotheses=8, device="cuda", **kwargs):
@@ -100,17 +100,16 @@ class MultiCameraPredictor(nn.Module):
 
         self.num_hypotheses = num_hypotheses
         self.device = device
-        num_feats = kwargs.get("num_feats", 100)
         self.cam_preds = nn.ModuleList(
             [CameraPredictor(**kwargs) for _ in range(num_hypotheses)])
 
-        # TODO: init bias rotation
-
         # taken from the original repo
         base_rotation = matrix_to_quaternion(
-            euler_angles_to_matrix(torch.FloatTensor([np.pi/2, 0, 0]), "XYZ")).unsqueeze(0)  # rotation by PI/2 around the x-axis
+            euler_angles_to_matrix(torch.FloatTensor([np.pi / 2, 0, 0]), "XYZ")).unsqueeze(
+            0)  # rotation by PI/2 around the x-axis
         base_bias = matrix_to_quaternion(
-            euler_angles_to_matrix(torch.FloatTensor([0, np.pi/4, 0]), "XYZ")).unsqueeze(0)  # rotation by PI/4 around the y-axis
+            euler_angles_to_matrix(torch.FloatTensor([0, np.pi / 4, 0]), "XYZ")).unsqueeze(
+            0)  # rotation by PI/4 around the y-axis
 
         # base_rotation = torch.FloatTensor(
         #     [0.9239, 0, 0.3827, 0]).unsqueeze(0).unsqueeze(0)  # pi/4 (45° )
@@ -127,10 +126,7 @@ class MultiCameraPredictor(nn.Module):
         self.cam_biases = torch.stack(
             self.cam_biases).squeeze().to(self.device)
 
-        # self.classification_head = nn.Linear(
-        #    num_feats, num_hypotheses)
-
-    def forward(self, img_feats):
+    def forward(self, img_feats: torch.FloatTensor) -> Tuple:
         """
         Predict a certain number of camera poses. Samples one of the poses according to a predicted probability.
         :param img_feats: [N x F] input tensor containing batch_size number of encoded features from the input images.
@@ -149,7 +145,7 @@ class MultiCameraPredictor(nn.Module):
 
         # apply softmax to probabilities
         prob_logits = pred_pose[..., 7]
-        #prob_logits = self.classification_head(img_feats)
+        # prob_logits = self.classification_head(img_feats)
         probs = F.softmax(prob_logits, dim=1)
 
         quats = pred_pose[..., 3:7]
@@ -160,7 +156,8 @@ class MultiCameraPredictor(nn.Module):
         pred_pose_new = torch.cat(
             (pred_pose[..., :3], new_quats, probs.unsqueeze(-1)), dim=-1)
 
-        # sample a camera accoring to multinomial distribution
+        # sample a camera according to multinomial distribution
+
         # taken from the original repo
         dist = torch.distributions.multinomial.Multinomial(probs=probs)
         # get index of hot-one in one-hot encoded vector. Delivers the index of the camera which should be sampled.
@@ -170,11 +167,10 @@ class MultiCameraPredictor(nn.Module):
             pred_pose, dim=1, index=indices).view(-1, pred_pose.size(-1))
         sampled_cam = vec_to_tuple(sampled_cam)
 
-        # + (pred_pose_new[...,7],)
         return sampled_cam, sample_idx, vec_to_tuple(pred_pose_new)
 
 
-def vec_to_tuple(x, use_prob=True):
+def vec_to_tuple(x):
     """
     Converts an input tensor
     :param x: prediction output of the pose predictor.

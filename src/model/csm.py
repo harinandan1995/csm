@@ -30,7 +30,12 @@ class CSM(torch.nn.Module):
 
     def __init__(self, template_mesh: Meshes, mean_shape: dict,
                  use_gt_cam: bool = False, num_cam_poses: int = 8,
-                 use_sampled_cam=False, use_arti=False, arti_epochs=0, arti_mesh_info: dict = {}, num_in_chans: int = 3, scale_bias: float = 1.):
+                 use_sampled_cam=False,
+                 use_arti=False,
+                 arti_epochs=0,
+                 arti_mesh_info: dict = {},
+                 num_in_chans: int = 3,
+                 scale_bias: float = 1.):
         """
         :param template_mesh: A pytorch3d.structures.Meshes object which will used for
         rendering depth and mask for a given camera pose
@@ -80,7 +85,7 @@ class CSM(torch.nn.Module):
         if self.use_sampled_cam:
             num_cam_poses = 1
 
-        # number of camera postion used in rendering for each image
+        # number of camera position used in rendering for each image
         self.num_cam_poses = num_cam_poses
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
@@ -100,6 +105,7 @@ class CSM(torch.nn.Module):
         :param scale: A (B X 1) tensor of input image
         :param trans: A (B X 2) tensor of translations (tx, ty)
         :param quat: A (B X 4) tensor of quaternions
+        :param epochs: Integer value, containing the current epoch number. Used to check whether to use articulation yet.
         :return: A dictionary containing following values
             - pred_positions: A (B X CP X 2 X H X W) tensor containing predicted position of each pixel
                 after transforming them to 3D and then projecting back to image plane
@@ -135,7 +141,8 @@ class CSM(torch.nn.Module):
             arti_verts, arti_rotation, arti_translation = self.arti(
                 img_feats, self.use_gt_cam, self.use_sampled_cam, cam_idx)
 
-        # The vertices output is [B x 1 x M(vertices number) x 3 if use_gt_cam or use_sampled_cam, otherwise it is [B x H x M x 3]
+        # The vertices output is [B x 1 x M(vertices number) x 3 if use_gt_cam or use_sampled_cam, otherwise it is [B
+        # x H x M x 3]
         if self.use_arti and epochs >= self.arti_epochs:
             meshes = self._articulate_meshes(arti_verts)
         else:
@@ -252,7 +259,7 @@ class CSM(torch.nn.Module):
         num_poses = rotation.size(1)
 
         if arti_verts is not None:
-            uv_new = uv.view(batch_size, height*width, 2)
+            uv_new = uv.view(batch_size, height * width, 2)
             uv_new = uv_new.unsqueeze(1).repeat(1, num_poses, 1, 1)
             uv_flatten = uv_new.view(-1, 2)
             uv_3d = self.uv_to_3d(uv_flatten, arti_verts).view(
@@ -263,7 +270,7 @@ class CSM(torch.nn.Module):
             uv_flatten = uv.view(-1, 2)
             uv_3d = self.uv_to_3d(uv_flatten).view(batch_size, 1, -1, 3)
             uv_3d = uv_3d.repeat(1, num_poses, 1, 1).view(
-                batch_size*num_poses, -1, 3)
+                batch_size * num_poses, -1, 3)
 
         cameras = OpenGLOrthographicCameras(
             device=sphere_points.device, R=rotation.view(-1, 3, 3), T=translation.view(-1, 3))
@@ -276,11 +283,12 @@ class CSM(torch.nn.Module):
         z = z.permute(0, 1, 4, 2, 3)
         uv = uv.permute(0, 3, 1, 2)
         uv_3d = uv_3d.view(batch_size, num_poses, height, width, 3)[
-            :, 0, :, :, :].squeeze()
+                :, 0, :, :, :].squeeze()
 
         return xy, z, uv, uv_3d
 
-    def _render(self, rotation: torch.Tensor, translation: torch.Tensor, meshes: Meshes) -> (torch.Tensor, torch.Tensor):
+    def _render(self, rotation: torch.Tensor, translation: torch.Tensor, meshes: Meshes) -> (
+            torch.Tensor, torch.Tensor):
 
         batch_size = rotation.size(0)
         cam_poses = rotation.size(1)
@@ -315,6 +323,6 @@ class CSM(torch.nn.Module):
         # when directly used results in wrong loss calculation so changing the values to the max + 1
         pred_depth = pred_depth - pred_depth.min()
         pred_depth = pred_depth * depth_mask + \
-            (~depth_mask) * (pred_depth.max())
+                     (~depth_mask) * (pred_depth.max())
 
         return pred_mask, pred_depth

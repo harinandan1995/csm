@@ -11,15 +11,6 @@ from pytorch3d.renderer import (BlendParams, MeshRasterizer, MeshRenderer,
 from pytorch3d.structures import Meshes
 
 
-"""
-1. Option: distance, elevation, azimuth
-2. option: camera_position = (0, 0, 0) in world coordinates, 
-3. option: quaternions 
-4. option: (euler angles etc.)
-5. option:  https://pytorch3d.readthedocs.io/en/latest/modules/transforms.html#pytorch3d.transforms.so3_exponential_map
-"""
-
-
 class MaskAndDepthRenderer(nn.Module):
     """Pytorch Module combining the mask and the depth renderer."""
 
@@ -32,8 +23,6 @@ class MaskAndDepthRenderer(nn.Module):
         :param image_size: Image size for the rasterization. Default is 256.
         """
         super().__init__()
-        # self.meshes = meshes
-        # device = meshes.device
 
         cameras = OpenGLOrthographicCameras(device=device)
         self._rasterizer = MeshRasterizer(
@@ -56,9 +45,6 @@ class MaskAndDepthRenderer(nn.Module):
         :return: Tuple with [N X W X H] / [N X W X H X C] tensor.
                 with N = batch size, W = width of image, H = height of image, C = Channels. usually W=H.
         """
-        # batch_size = R.size(0)
-        # meshes_batch = self.meshes.extend(batch_size)
-        # meshes_batch = meshes.extend(batch_size)
 
         # retrieve depth map
         fragments = self._rasterizer(meshes, R=R, T=T)
@@ -119,7 +105,9 @@ class MaskRenderer(nn.Module):
 
         :param T: Translation vector of the camera
         :param R: Rotation matrix of the camera
-
+        :param meshes: A batch of meshes that will be rendered. pytorch3d.structures.Meshes. Dimension meshes in R^N.
+                View https://github.com/facebookresearch/pytorch3d/blob/master/pytorch3d/structures/meshes.py
+                for additional information.
         :return: [N X W X H] tensor. with N = batch size, W = width of image, H = height of image. usually W=H.
         """
 
@@ -141,9 +129,7 @@ class DepthRenderer(nn.Module):
 
            :param device: The device, on which the computation is done, e.g. cpu or cuda.
            :param image_size: Image size for the rasterization. Default is 256.
-           :param meshes: A batch of meshes. pytorch3d.structures.Meshes. Dimension meshes in R^N.
-                View https://github.com/facebookresearch/pytorch3d/blob/master/pytorch3d/structures/meshes.py
-                for additional information.
+
        """
         super(DepthRenderer, self).__init__()
 
@@ -167,6 +153,9 @@ class DepthRenderer(nn.Module):
 
         :param T: Translation vector of the camera
         :param R: Rotation matrix of the camera
+        :param meshes: A batch of meshes that will be rendered. pytorch3d.structures.Meshes. Dimension meshes in R^N.
+                View https://github.com/facebookresearch/pytorch3d/blob/master/pytorch3d/structures/meshes.py
+                for additional information.
 
         :return: 2-Tuple of [N X W X H x C] (image) and [N X W X H](depth map ) tensors.
                 with N = batch size,
@@ -177,12 +166,9 @@ class DepthRenderer(nn.Module):
 
         fragments = self._rasterizer(meshes, R=R, T=T)
 
-        # needs to be rendered through the shaded to obtain proper depth values
+        # needs to be rendered through the shader to obtain proper depth values
         _ = self._shader(fragments, meshes)
         depth_map = fragments.zbuf
-
-        # extract masks from alpha channel of rgba image
-        #masks = silhouettes[..., 3]
 
         return depth_map[..., 0]
 
@@ -190,7 +176,6 @@ class DepthRenderer(nn.Module):
 class ColorRenderer(nn.Module):
 
     def __init__(self, meshes, image_size=256, device='cuda'):
-
         super(ColorRenderer, self).__init__()
 
         self.meshes = meshes
@@ -212,7 +197,6 @@ class ColorRenderer(nn.Module):
         )
 
     def forward(self, rotation, translation):
-
         color_image = self.renderer(self.meshes.extend(
             rotation.size(0)), R=rotation, T=translation)
 

@@ -31,7 +31,7 @@ def geometric_cycle_consistency_loss(gt_2d_pos_grid, pred_positions, mask, coeff
     pred = torch.mul(mask.unsqueeze(1), pred_positions)
 
     loss = coeffs * torch.sub(gt, pred).pow(2)
-    
+
     if reduction == 'mean':
         return loss.mean()
     else:
@@ -117,15 +117,15 @@ def quaternion_regularization_loss(quats: torch.tensor):
     quats_x = torch.gather(quats, dim=1, index=quat_perm[0].view(1, -1, 1).repeat(len(quats), 1, 4))
     quats_y = torch.gather(quats, dim=1, index=quat_perm[1].view(1, -1, 1).repeat(len(quats), 1, 4))
     inter_quats = hamilton_product(quats_x, quat_conj(quats_y))
-    
-    quatAng = quat2ang(inter_quats).view(len(inter_quats), num_cam_poses - 1, -1)
-    quatAng = torch.abs(quatAng - np.pi)
-    quatAng = torch.nn.functional.max_pool1d(quatAng.permute(0, 2, 1), num_cam_poses - 1, stride=1)
-    
-    # quatAng = -1 * torch.nn.functional.max_pool1d(
-    #     -1 * quatAng.permute(0, 2, 1), num_cam_poses - 1, stride=1).squeeze()
 
-    return quatAng.mean()
+    quat_ang = quat2ang(inter_quats).view(len(inter_quats), num_cam_poses - 1, -1)
+    quat_ang = torch.abs(quat_ang - np.pi)
+    quat_ang = torch.nn.functional.max_pool1d(quat_ang.permute(0, 2, 1), num_cam_poses - 1, stride=1)
+
+    # quat_ang = -1 * torch.nn.functional.max_pool1d(
+    #     -1 * quat_ang.permute(0, 2, 1), num_cam_poses - 1, stride=1).squeeze()
+
+    return quat_ang.mean()
 
 
 def diverse_loss(probs):
@@ -136,13 +136,14 @@ def diverse_loss(probs):
     """
     # compute negative entropy, which should be minimized in order to maximize entropy
     entropy = torch.log(probs + 1E-9) * probs
-    # shift enrtopy above zero to allow proper hpt
+
+    # shift entropy above zero to allow proper hpt
     entropy += 1
     entropy = entropy.sum(1).mean()
     return entropy
 
 
-def articulation_loss(translation,  reduction='mean'):
+def articulation_loss(translation, reduction='mean'):
     """
     :param [B X 1 x K X 3] or [B X 8 x K X 3] translation  
     :param reduction: 
