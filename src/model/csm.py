@@ -53,14 +53,16 @@ class CSM(torch.nn.Module):
         self.unet = UNet(4, 3, num_downs=5)
         self.uv_to_3d = UVto3D(mean_shape)
         self.template_mesh = template_mesh
-        self.renderer = MaskAndDepthRenderer(device=self.template_mesh.device)
-        # self.renderer = MaskAndDepthRenderer(meshes=template_mesh)
+        self.mask_renderer = MaskRenderer(device=self.template_mesh.device)
+        self.depth_renderer = DepthRenderer(device=self.template_mesh.device)
+        # self.renderer = MaskAndDepthRenderer(device=self.template_mesh.device)
 
         self.use_gt_cam = use_gt_cam
         self.use_sampled_cam = use_sampled_cam
         self.use_arti = use_arti
 
         if not self.use_gt_cam or self.use_arti:
+            self.num_in_chans = num_in_chans
             self.encoder = Encoder(
                 trainable=True, num_in_chans=num_in_chans)
 
@@ -118,6 +120,8 @@ class CSM(torch.nn.Module):
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
         if (self.use_arti and epochs >= self.arti_epochs) or not self.use_gt_cam:
+            if self.num_in_chans == 4:
+                img = torch.cat((img, mask), dim=1)
             img_feats = self.encoder(img)
             img_feats = img_feats.view(len(img_feats), -1)
         else:
@@ -142,28 +146,25 @@ class CSM(torch.nn.Module):
         pred_pos, pred_z, uv, uv_3d = self._get_projected_positions_of_sphere_points(
             sphere_points, rotation, translation, arti_verts)
 
-        if torch.max(uv) > 1.0:
-            print('maximum index should be less that 1.0')
-        if torch.min(uv) < 0.0:
-            print('minimum value should be greater that 0.0')
-
         # Render depth and mask of the template for the cam pose
         pred_mask, pred_depth = self._render(
             rotation, translation, meshes)
 
         out = {
+            "uv_3d": uv_3d,
+            "uv": uv,
+            "pred_z": pred_z,
             "pred_positions": pred_pos,
             "pred_depths": torch.flip(pred_depth, (-1, -2)),
             "pred_masks": torch.flip(pred_mask, (-1, -2)),
-            "pred_z": pred_z,
             "rotation": rotation,
-            "translation": translation,
-            "uv_3d": uv_3d,
-            "uv": uv,
+            "translation": translation
         }
 
         if not self.use_gt_cam:
             out['pred_poses'] = pred_poses
+            if self.use_sampled_cam:
+                out['sample_idx'] = cam_idx
 
         if self.use_arti and epochs >= self.arti_epochs:
             out["pred_arti_translation"] = arti_translation
@@ -284,21 +285,36 @@ class CSM(torch.nn.Module):
         batch_size = rotation.size(0)
         cam_poses = rotation.size(1)
 
-        pred_mask, pred_depth = self.renderer(
+        pred_mask = self.mask_renderer(
             rotation.view(-1, 3, 3),
             translation.view(-1, 3),
             meshes)
 
+        pred_depth = self.depth_renderer(
+            rotation.view(-1, 3, 3),
+            translation.view(-1, 3),
+            meshes)
+
+        # pred_mask_comb, pred_depth_comb = self.renderer(
+        #      rotation.view(-1, 3, 3),
+        #      translation.view(-1, 3),
+        #      meshes)
+
+        # print(torch.sum(pred_depth-pred_depth_comb).item())
         height = pred_mask.size(1)
         width = pred_mask.size(2)
 
         pred_mask = pred_mask.view(batch_size, cam_poses, 1, height, width)
         pred_depth = pred_depth.view(batch_size, cam_poses, 1, height, width)
+        # depth_mask = depth_mask.view(batch_size, cam_poses, 1, height, width)
+
+        # cut mask s.t. only pixels with corresponding depth value are occupied
+        depth_mask = pred_depth != -1
 
         # Pytorch renderer returns -1 values for the empty pixels which
         # when directly used results in wrong loss calculation so changing the values to the max + 1
-        pred_depth = pred_depth * \
-            torch.ceil(pred_mask) + (1 - torch.ceil(pred_mask)) * \
-            pred_depth.max()
+        pred_depth = pred_depth - pred_depth.min()
+        pred_depth = pred_depth * depth_mask + \
+            (~depth_mask) * (pred_depth.max())
 
         return pred_mask, pred_depth
