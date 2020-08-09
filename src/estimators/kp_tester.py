@@ -96,7 +96,7 @@ class KPTransferTester(ITester):
         trans = data['trans'].to(self.device, dtype=torch.float)
         quat = data['quat'].to(self.device, dtype=torch.float)
 
-        pred_out = self.model(img, mask, scale, trans, quat)
+        pred_out = self.model(img, mask, scale, trans, quat, 0)
 
         return pred_out
 
