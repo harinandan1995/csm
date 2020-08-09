@@ -54,6 +54,7 @@ class ITrainer:
         create_dir_if_not_exists(self.checkpoint_dir)
 
         self.summary_writer = SummaryWriter(self.summary_dir)
+        print(f"Writing summaries to {self.summary_dir}")
         torch.autograd.set_detect_anomaly(True)
 
     def train(self, **kwargs):
