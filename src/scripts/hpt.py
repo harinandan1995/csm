@@ -6,6 +6,7 @@ from ax.service.ax_client import AxClient
 
 from src.estimators.csm_trainer import CSMTrainer
 from src.utils.config import ConfigParser
+from src.estimators.kp_tester import KPTransferTester
 
 
 def start_hpt(config_path, params, device):
@@ -19,61 +20,94 @@ def start_hpt(config_path, params, device):
         name="csm_loss_weights",
         parameters=[
             {
-                "name": "visibility",
+                "name": "loss/visibility",
                 "type": "range",
                 "bounds": [0.1, 5.0],
             },
             {
-                "name": "mask",
+                "name": "loss/mask",
                 "type": "range",
-                "bounds": [1.0, 5.0],
+                "bounds": [1.0, 4.0],
             },
             {
-                "name": "diverse",
+                "name": "loss/diverse",
                 "type": "range",
-                "bounds": [0.0, 0.1],
+                "bounds": [0.0, 0.5],
             },
             {
-                "name": "quat",
+                "name": "loss/quat",
                 "type": "range",
-                "bounds": [0.0, 5.0],
+                "bounds": [0.0, 1.0],
             },
             {
-                "name": "mask_only",
+                "name": "loss/mask_only",
                 "type": "choice",
                 "values": [False, True],
             },
+            {
+                "name": "num_in_chans",
+                "type": "choice",
+                "values": [3, 4],
+            },
         ],
         objective_name="loss",
-        minimize=True  # Optional, defaults to False.
+        minimize=True  # defaults to False.
     )
+
+    out_dir_old = config.train.out_dir
 
     for i in range(20):
         parameters, trial_index = ax_client.get_next_trial()
 
+        config.train.out_dir = os.path.join(
+            out_dir_old, f"trial{trial_index}")
+
+        nested_params = split_params(parameters, {})
         # update loss weights accordingly
-        config.train.loss.update(parameters)
+        config.train.loss.update(nested_params.pop("loss", {}))
+        # update other train parameters, e.g. number of input channels
+        config.train.update(nested_params)
 
         print(json.dumps(config, indent=3))
         trainer = CSMTrainer(config, device)
-        [geometric, visibility, mask, diverse, quat, arti] = trainer.train()
+        trainer.train()
+
+        [geometric, visibility, mask, diverse, quat, _] = trainer.running_loss
 
         visibility /= config.train.loss.visibility
         mask /= config.train.loss.mask
         quat /= config.train.loss.quat
         geometric /= config.train.loss.geometric
-        arti /= config.train.loss.arti
+        # arti /= config.train.loss.arti
 
-        loss = sum([visibility, mask, quat, geometric, arti])
-        print(f"overall loss:  {loss}")
+        losses = [visibility, mask, quat, geometric, _]
+        loss = sum(losses)/len(losses)
 
         # Local evaluation here can be replaced with deployment to external system.
         ax_client.complete_trial(trial_index=trial_index, raw_data={
-            "visibility": (visibility.item(), 0.0),
-            "mask": (mask.item(), 0.0),
-            "quat": (quat.item(), 0.0),
-            "geometric": (geometric.item(), 0.0),
-            "diverse": (diverse.item(), 0.0),
+            "loss/visibility": (visibility.item(), 0.0),
+            "loss/mask": (mask.item(), 0.0),
+            "loss/quat": (quat.item(), 0.0),
+            "loss/geometric": (geometric.item(), 0.0),
+            "loss/diverse": (diverse.item(), 0.0),
             "loss": (loss, 0, 0)
         }
         )
+        
+    try:
+        with open("report.html", "w+") as f:
+            f.write(ax_client.get_report())
+    except Exception as e:
+        print("writing report didt work")
+
+        print(e)
+        
+def split_params(params, out):
+
+    for k, v in params.items():
+        if len(k_split := k.split("/")) > 1:
+            out[k_split[0]] = split_params(
+                {"/".join(k_split[1:]): v}, out.get(k_split[0], {}))
+        else:
+            out[k] = v
+    return out

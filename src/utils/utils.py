@@ -77,12 +77,14 @@ def add_train_arguments(sub_parser: argparse.ArgumentParser):
     sub_parser.add_argument('--train.loss.mask', required=False, type=float)
     sub_parser.add_argument('--train.loss.diverse', required=False, type=float)
     sub_parser.add_argument('--train.loss.quat', required=False, type=float)
+    sub_parser.add_argument('--train.loss.mask_only',
+                            required=False, type=str2bool)
+    sub_parser.add_argument('--train.num_in_chans', required=False, type=int)
+    sub_parser.add_argument('--train.scale_bias', required=False, type=float)
 
     sub_parser.add_argument('-lr', '--train.optim.lr',
                             required=False, type=float)
     sub_parser.add_argument('-b1', '--train.optim.beta1',
-                            required=False, type=float)
-    sub_parser.add_argument('-sb', '--train.scale_bias',
                             required=False, type=float)
 
 
