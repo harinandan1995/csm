@@ -123,13 +123,16 @@ class KPTransferTester(ITester):
         uv1 = pred_out1['uv']
         uv2 = pred_out2['uv']
 
+        mesh1 = pred_out1["arti"]
+        mesh2 = pred_out2["arti"]
+
         self._add_uv_summaries(pred_out1, pred_out2, batch1, batch2, step)
 
         kps1 = self._convert_to_int_indices(batch1['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
         kps2 = self._convert_to_int_indices(batch2['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
 
-        transfer_kps12, error_kps12 = self.map_kp_img1_to_img2(kps1, kps2, uv1, uv2, mask1, mask2)
-        transfer_kps21, error_kps21 = self.map_kp_img1_to_img2(kps2, kps1, uv2, uv1, mask2, mask1)
+        transfer_kps12, error_kps12 = self.map_kp_img1_to_img2(kps1, kps2, uv1, uv2, mask1, mask2, mesh1)
+        transfer_kps21, error_kps21 = self.map_kp_img1_to_img2(kps2, kps1, uv2, uv1, mask2, mask1, mesh2)
         
         return transfer_kps12, error_kps12, transfer_kps21, error_kps21, kps1, kps2
 

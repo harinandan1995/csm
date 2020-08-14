@@ -171,8 +171,10 @@ class CSM(torch.nn.Module):
         if self.use_arti and epochs >= self.arti_epochs:
             out["pred_arti_translation"] = arti_translation
             out["pred_arti_angle"] = arti_angle
-            arti_verts_s = arti_verts.detach().squeeze(0)
+            arti_verts_s = arti_verts.detach()
             out["arti"] = arti_verts_s
+        else:
+            out["arti"] = None
 
         return out
 
