@@ -131,8 +131,8 @@ class KPTransferTester(ITester):
         kps1 = self._convert_to_int_indices(batch1['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
         kps2 = self._convert_to_int_indices(batch2['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
 
-        transfer_kps12, error_kps12 = self.map_kp_img1_to_img2(kps1, kps2, uv1, uv2, mask1, mask2, mesh1)
-        transfer_kps21, error_kps21 = self.map_kp_img1_to_img2(kps2, kps1, uv2, uv1, mask2, mask1, mesh2)
+        transfer_kps12, error_kps12 = self.map_kp_img1_to_img2(kps1, kps2, uv1, uv2, mask1, mask2, mesh1, mesh2)
+        transfer_kps21, error_kps21 = self.map_kp_img1_to_img2(kps2, kps1, uv2, uv1, mask2, mask1, mesh2, mesh1)
         
         return transfer_kps12, error_kps12, transfer_kps21, error_kps21, kps1, kps2
 
@@ -140,7 +140,7 @@ class KPTransferTester(ITester):
 
         return tensor.data.cpu().numpy()
 
-    def map_kp_img1_to_img2(self, kps1, kps2, uv_map1, uv_map2, mask1, mask2):
+    def map_kp_img1_to_img2(self, kps1, kps2, uv_map1, uv_map2, mask1, mask2, mesh1, mesh2):
 
         kp_mask = kps1[:, 2] * kps2[:, 2]
         kps1_vis = kps1[:, 2]
@@ -152,8 +152,8 @@ class KPTransferTester(ITester):
         
         kps1_uv = uv_map1[kps1[:, 1], kps1[:, 0], :]
 
-        kps1_3d = self.model.uv_to_3d(kps1_uv).view(1, 1, -1 ,3)
-        uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2)).view(1, img_H, img_W, 3)
+        kps1_3d = self.model.uv_to_3d(kps1_uv, mesh1).view(1, 1, -1 ,3)
+        uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2), mesh2).view(1, img_H, img_W, 3)
 
         distances3d = torch.sum((kps1_3d.view(-1, 1, 3) - uv_points3d.view(1, -1, 3))**2, -1).sqrt()
 
