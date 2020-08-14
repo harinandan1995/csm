@@ -19,7 +19,7 @@ class ArticulationPredictor(nn.Module):
     It predicts angle (in axis-angle representation) and translation for articulation.
     """
 
-    def __init__(self, num_parts, num_feats=512, num_rots=2, num_trans=3, device='cuda', axis_move=False):
+    def __init__(self, num_parts, num_feats=512, num_rots=2, num_trans=3, device='cuda', axis_move=False, body_fixed = True):
         """
         :param num_parts: the number of part of object
         :param num_feats: the number of feats extracted from images
@@ -46,6 +46,7 @@ class ArticulationPredictor(nn.Module):
             self.axis.requires_grad = False
         net_init(self.fc)
         self.count = 0
+        self.body_fixed = body_fixed
 
     def forward(self, x):
         """
@@ -65,10 +66,19 @@ class ArticulationPredictor(nn.Module):
         vec_tran = vec[..., self._num_rots:].unsqueeze(-1)
         vec_rot = F.normalize(vec_rot, dim=-1)
         angle = torch.atan2(
-            vec_rot[..., 1], vec_rot[..., 0]).unsqueeze(-1).repeat(1, 1, 3)
+            vec_rot[..., 1], vec_rot[..., 0])
         self.axis.data = F.normalize(self.axis, dim=-1).data
         axis = self.axis.unsqueeze(0).repeat(batch_size, 1, 1)
 
+        #############
+        if self.body_fixed:
+            angle0 = torch.zeros_like(angle[:, [0]])
+            trans0 = torch.zeros_like(vec_tran[:, [0], :])
+            angle = torch.cat([angle0, angle[:, 1:]], dim=1)
+            vec_tran = torch.cat([trans0, vec_tran[:, 1:, :]], dim=1)
+        #############
+
+        angle = angle.unsqueeze(-1).repeat(1, 1, 3)
         axis = axis.view(-1, 3)
         angle = angle.view(-1, 3)
 
