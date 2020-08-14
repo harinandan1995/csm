@@ -72,10 +72,12 @@ class ArticulationPredictor(nn.Module):
 
         #############
         if self.body_fixed:
-            angle0 = torch.zeros_like(angle[:, [0]])
-            trans0 = torch.zeros_like(vec_tran[:, [0], :])
-            angle = torch.cat([angle0, angle[:, 1:]], dim=1)
-            vec_tran = torch.cat([trans0, vec_tran[:, 1:, :]], dim=1)
+            # angle0 = torch.zeros_like(angle[:,[0]])
+            # trans0 = torch.zeros_like(vec_tran[:,[0],:])
+            # angle = torch.cat([angle0,angle[:,1:]], dim=1)
+            # vec_tran = torch.cat([trans0,vec_tran[:,1:,:]], dim=1)
+            angle[:, 0] = 0
+            vec_tran[:, 1:, :] = 0
         #############
 
         angle = angle.unsqueeze(-1).repeat(1, 1, 3)
