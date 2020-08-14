@@ -130,12 +130,16 @@ class CSMTrainer(ITrainer):
 
         if not self.config.use_gt_cam:
             _, _, pred_quat, pred_prob = pred_out['pred_poses']
-            if self.config.loss.mask > 0:
-                loss[2] = self.config.loss.mask * mask_reprojection_loss(mask, pred_masks, coeffs=prob_coeffs)
+            #if self.config.loss.mask > 0:
+            #    loss[2] = self.config.loss.mask * mask_reprojection_loss(mask, pred_masks, coeffs=prob_coeffs)
             if self.config.loss.diverse > 0:
                 loss[3] = self.config.loss.diverse * diverse_loss(pred_prob)
             if self.config.loss.quat > 0:
                 loss[4] = self.config.loss.quat * quaternion_regularization_loss(pred_quat)
+
+        if not self.config.use_gt_cam or (self.config.use_arti and not not_arti):
+           if self.config.loss.mask > 0:
+               loss[2] = self.config.loss.mask * mask_reprojection_loss(mask, pred_masks, coeffs=prob_coeffs)
 
         if self.config.use_arti and not not_arti:
             pred_arti_translation = pred_out["pred_arti_translation"]

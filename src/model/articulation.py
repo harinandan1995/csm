@@ -45,6 +45,7 @@ class ArticulationPredictor(nn.Module):
         if not axis_move:
             self.axis.requires_grad = False
         net_init(self.fc)
+        self.count = 0
 
     def forward(self, x):
         """
@@ -73,10 +74,11 @@ class ArticulationPredictor(nn.Module):
 
         R = so3_exponential_map(angle * axis)
         R = R.view(batch_size, self._num_parts, 3, 3)
-        #print("\ntranslation:\n")
-        #print(vec_tran)
-        #print("\nangle:\n")
-        #print(angle)
+
+        self.count = self.count + 1
+        if self.count % 20 == 0:
+            print(angle[:,0])
+
         return R, vec_tran, angle
 
 
