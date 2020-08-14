@@ -126,7 +126,7 @@ class KPTransferTester(ITester):
         mesh1 = pred_out1["arti"]
         mesh2 = pred_out2["arti"]
 
-        self._add_uv_summaries(pred_out1, pred_out2, batch1, batch2, step)
+        #self._add_uv_summaries(pred_out1, pred_out2, batch1, batch2, step)
 
         kps1 = self._convert_to_int_indices(batch1['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
         kps2 = self._convert_to_int_indices(batch2['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
