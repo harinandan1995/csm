@@ -69,7 +69,7 @@ class CSM(torch.nn.Module):
         #         num_hypotheses=num_cam_poses, device=template_mesh.device)
         # else:
         #     num_cam_poses = 1
-        self.encoder = get_encoder(trainable=False, num_in_chans=num_in_chans)
+        self.encoder = get_encoder(trainable=False, num_in_chans=3)
         self.multi_cam_pred = MultiCameraPredictor(num_hypotheses=num_cam_poses, device=template_mesh.device)
 
         if self.use_gt_cam:
