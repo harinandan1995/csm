@@ -27,6 +27,7 @@ train:
   use_sampled_cam: False
   num_cam_poses: 8
   pose_warmup_epochs: 10
+  num_in_chans: 4
   log:
     image_summary_step: 50
     image_epoch: 1

@@ -78,6 +78,7 @@ class P3DDataset(IDataset):
         print('Loading p3D annotations from %s' % anno_path)
         self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
         self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
+        self.arti_info_mesh = None
 
         self.num_samples = len(self.anno)
 

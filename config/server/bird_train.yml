@@ -29,6 +29,7 @@ train:
   pose_warmup_epochs: 10
   use_arti: False
   arti_epochs: 100
+  num_in_chans: 4
   log:
     image_summary_step: 50
     image_epoch: 1

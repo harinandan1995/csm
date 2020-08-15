@@ -126,7 +126,7 @@ class KPTransferTester(ITester):
         mesh1 = pred_out1["arti"]
         mesh2 = pred_out2["arti"]
 
-        #self._add_uv_summaries(pred_out1, pred_out2, batch1, batch2, step)
+        self._add_uv_summaries(pred_out1, pred_out2, batch1, batch2, step)
 
         kps1 = self._convert_to_int_indices(batch1['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
         kps2 = self._convert_to_int_indices(batch2['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
@@ -182,7 +182,7 @@ class KPTransferTester(ITester):
 
         model = CSM(self.dataset.template_mesh, self.dataset.mean_shape, self.config.use_gt_cam,
                     self.config.num_cam_poses, self.config.use_sampled_cam, self.config.use_arti,
-                    self.config.arti_epochs, self.dataset.arti_info_mesh, self.device).to(self.device)
+                    self.config.arti_epochs, self.dataset.arti_info_mesh, self.device, self.config.num_in_chans).to(self.device)
 
         return model
 

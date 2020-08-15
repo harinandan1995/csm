@@ -29,7 +29,7 @@ class CSM(torch.nn.Module):
 
     def __init__(self, template_mesh: Meshes, mean_shape: dict,
                  use_gt_cam: bool = False, num_cam_poses: int = 8,
-                 use_sampled_cam=False, use_arti=False, arti_epochs=0, arti_mesh_info: dict = {}, device="cuda", num_in_chans: int = 3 ):
+                 use_sampled_cam=False, use_arti=False, arti_epochs=0, arti_mesh_info: dict = {}, device="cuda", num_in_chans: int = 4 ):
         """
         :param template_mesh: A pytorch3d.structures.Meshes object which will used for
         rendering depth and mask for a given camera pose
@@ -48,8 +48,9 @@ class CSM(torch.nn.Module):
         :param device: Device to store the tensor. Default: cuda
         """
         super(CSM, self).__init__()
-
-        self.unet = UNet(4, 3, num_downs=5)
+        
+        self.num_in_chans = num_in_chans
+        self.unet = UNet(num_in_chans, 3, num_downs=5)
         self.uv_to_3d = UVto3D(mean_shape)
         self.template_mesh = template_mesh
         #self.template_mesh2 =
@@ -118,8 +119,13 @@ class CSM(torch.nn.Module):
             - pred_depths: A (B X CP X 1 X H X W) tensor containing the rendered depths of the mesh
                 template for the camera poses
         """
-
-        sphere_points = self.unet(torch.cat((img, mask), 1))
+        
+        if self.num_in_chans == 4:
+            sphere_points = self.unet(torch.cat((img, mask), 1))
+        elif self.num_in_chans == 3:
+            sphere_points = self.unet(img)
+        else:
+            print("ERROR!")
         sphere_points = torch.tanh(sphere_points)
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
