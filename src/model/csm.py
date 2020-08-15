@@ -82,9 +82,10 @@ class CSM(torch.nn.Module):
         #                                   device=template_mesh.device, **arti_mesh_info)
 
         arti_mesh_info["template_mesh"] = template_mesh
-        self.arti_epochs = arti_epochs
-        self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
-                                      device=template_mesh.device, **arti_mesh_info)
+        if arti_mesh_info is not None:
+            self.arti_epochs = arti_epochs
+            self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
+                                          device=template_mesh.device, **arti_mesh_info)
 
 
         self.num_cam_poses = num_cam_poses  # number of camera postion used in rendering for each image
