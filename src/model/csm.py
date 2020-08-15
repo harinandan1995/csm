@@ -81,8 +81,8 @@ class CSM(torch.nn.Module):
         #     self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
         #                                   device=template_mesh.device, **arti_mesh_info)
 
-        arti_mesh_info["template_mesh"] = template_mesh
         if arti_mesh_info is not None:
+            arti_mesh_info["template_mesh"] = template_mesh
             self.arti_epochs = arti_epochs
             self.arti = MultiArticulation(num_hypotheses=num_cam_poses,
                                           device=template_mesh.device, **arti_mesh_info)
