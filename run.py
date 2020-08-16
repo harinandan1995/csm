@@ -29,6 +29,9 @@ add_train_arguments(train_parser)
 test_parser = sub_parsers.add_parser('kp_test', help='Use this to start testing the model')
 add_kp_test_arguments(test_parser)
 
+test_at_parser = sub_parsers.add_parser('kp_test_at', help='Use this to start testing the model')
+add_kp_test_arguments(test_at_parser)
+
 args = parser.parse_args()
 
 if not args.show_warnings:
