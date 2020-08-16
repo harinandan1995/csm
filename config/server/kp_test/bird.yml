@@ -25,6 +25,7 @@ test:
   use_gt_cam: True
   num_cam_poses: 8
   use_arti: False
+   arti_epochs: 0
   num_in_chans_unet: 4
   num_in_chans: 3
   num_cam_poses: 8
