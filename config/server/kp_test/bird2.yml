@@ -14,8 +14,8 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/bird/map3.png'
-    data_dir: 'datasets/CUB_200_2011'
-    cache_dir: 'datasets/cachedir/cub'
+    data_dir: '/mnt/raid/csmteam/datasets/CUB_200_2011'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub2'
 
 test:
   batch_size: 1
@@ -24,11 +24,11 @@ test:
   out_dir: 'out/arti/test'
   use_gt_cam: True
   num_cam_poses: 8
+  use_sampled_cam: True
   use_arti: False
   num_in_chans_unet: 4
   num_in_chans: 3
   num_cam_poses: 8
-  use_sampled_cam: True
   alpha: [0.05, 0.1, 0.2]
   checkpoint: ''
   add_summaries: True
