@@ -46,9 +46,9 @@ class UVto3D(nn.Module):
         - Find the barycentric coordinates for the point w.r.t the face
         - Use barycentric coordinates to find the 3D coordinate of the given UV value
 
-        :param uv: [B, 2] tensor with UV values (0-1) for which the corresponding 3D points should be calculated
+        :param uv: [B*H*W, 2] tensor with UV values (0-1) for which the corresponding 3D points should be calculated
         :param arti_verts: A [B X CP X K X 3] articulated mesh vertices tensor or None if no use of articulation
-        :return: A [B, 3] tensor with the 3D coordinates fot the corresponding UV values
+        :return: A [B*H*W, 3] tensor with the 3D coordinates fot the corresponding UV values
         """
 
         # Find the closest UV value as per the UV resolution in 'uv_map'
@@ -85,12 +85,14 @@ class UVto3D(nn.Module):
             face_verts = torch.stack(all_batches, dim=0)
             face_verts = face_verts.view(-1, 3, 3)
 
+
         else:
             face_verts = torch.stack(
                 [self.verts_3d[uv_faces[:, 0]],
                  self.verts_3d[uv_faces[:, 1]],
                  self.verts_3d[uv_faces[:, 2]]], dim=1)
 
+        print(face_verts.size())
         # Use barycentric coordinates to find the 3D coordinate of the given UV value
         points3d = face_verts * bary_cord[:, :, None]
         points3d = points3d.sum(1)

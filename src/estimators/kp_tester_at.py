@@ -150,7 +150,7 @@ class KPTransferTester(ITester):
         uv_map2 = uv_map2.reshape(-1, img_H, img_W).permute(1, 2, 0)
 
         kps1_3d = self.model.uv_to_3d(self.kp_uv, None).view(1, 1, -1 ,3)
-        uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2), mesh2).view(1, img_H, img_W, 3)
+        uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2), None).view(1, img_H, img_W, 3)
 
         distances3d = torch.sum((kps1_3d.view(-1, 1, 3) - uv_points3d.view(1, -1, 3))**2, -1).sqrt()
 
