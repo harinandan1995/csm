@@ -9,14 +9,13 @@ from src.nnutils.geometry import load_mean_shape
 from src.utils.utils import validate_paths
 from src.data.utils.part_info import mesh_info
 
-
 class CubDataset(IDataset):
 
     def __init__(self, config, device):
 
-        self.category = config.category
         super(CubDataset, self).__init__(config, device)
 
+        self.category = config.category
         self.img_dir = osp.join(config.dir.data_dir, 'images')
         self.anno = []
         self.anno_sfm = []
@@ -36,17 +35,14 @@ class CubDataset(IDataset):
 
     def load_key_points(self):
 
-        kp_perm = np.array(
-            [1, 2, 3, 4, 5, 6, 11, 12, 13, 10, 7, 8, 9, 14, 15]) - 1
+        kp_perm = np.array([1, 2, 3, 4, 5, 6, 11, 12, 13, 10, 7, 8, 9, 14, 15]) - 1
         kp_names = ['Back', 'Beak', 'Belly', 'Breast', 'Crown', 'FHead', 'LEye',
                     'LLeg', 'LWing', 'Nape', 'REye', 'RLeg', 'RWing', 'Tail', 'Throat']
 
-        anno_train_sfm_path = osp.join(
-            self.config.dir.cache_dir, 'sfm', 'anno_%s.mat' % 'train')
+        anno_train_sfm_path = osp.join(self.config.dir.cache_dir, 'sfm', 'anno_%s.mat' % 'train')
         validate_paths(anno_train_sfm_path)
 
-        kp_3d = sio.loadmat(anno_train_sfm_path, struct_as_record=False, squeeze_me=True)[
-            'S'].transpose().copy()
+        kp_3d = sio.loadmat(anno_train_sfm_path, struct_as_record=False, squeeze_me=True)['S'].transpose().copy()
 
         kp_uv = self.preprocess_to_find_kp_uv(
             kp_3d,
@@ -61,39 +57,32 @@ class CubDataset(IDataset):
         data_sfm = self.anno_sfm[index]
         img_path = osp.join(self.img_dir, str(data.rel_path))
 
-        sfm_pose = [np.copy(data_sfm.scale), np.copy(
-            data_sfm.trans), np.copy(data_sfm.rot)]
+        sfm_pose = [np.copy(data_sfm.scale), np.copy(data_sfm.trans), np.copy(data_sfm.rot)]
         sfm_rot = np.pad(sfm_pose[2], (0, 1), 'constant')
         sfm_rot[3, 3] = 1
-        sfm_pose[2] = transformations.quaternion_from_matrix(
-            sfm_rot, isprecise=True)
+        sfm_pose[2] = transformations.quaternion_from_matrix(sfm_rot, isprecise=True)
         parts = data.parts.T.astype(float)
 
-        bbox = np.array([data.bbox.x1, data.bbox.y1,
-                         data.bbox.x2, data.bbox.y2], float) - 1
+        bbox = np.array([data.bbox.x1, data.bbox.y1, data.bbox.x2, data.bbox.y2], float) - 1
 
         return bbox, data.mask, parts, sfm_pose, img_path
 
     def load_data(self):
 
         cache_dir = self.config.dir.cache_dir
-        model_dir = osp.join(self.config.dir.cache_dir, '../models', 'bird')
 
-        anno_path = osp.join(
-            cache_dir, 'data', '%s_cub_cleaned.mat' % self.config.split)
-        anno_sfm_path = osp.join(
-            cache_dir, 'sfm', 'anno_%s.mat' % self.config.split)
+        anno_path = osp.join(cache_dir, 'data', '%s_cub_cleaned.mat' % self.config.split)
+        anno_sfm_path = osp.join(cache_dir, 'sfm', 'anno_%s.mat' % self.config.split)
 
         validate_paths(anno_path, anno_sfm_path)
 
         # Load the annotation file.
         print('Loading cub annotations from %s' % anno_path)
-        self.anno = sio.loadmat(
-            anno_path, struct_as_record=False, squeeze_me=True)['images']
-        self.anno_sfm = sio.loadmat(
-            anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
-        self.arti_info_mesh = mesh_info(
-            obj_class=self.category, model_dir=model_dir)
+        self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
+        self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
+
+        model_dir = osp.join(self.config.dir.cache_dir, 'models', '%s' % self.category)
+        self.arti_info_mesh = mesh_info(obj_class=self.category, model_dir=model_dir)
 
         self.num_samples = len(self.anno)
 

@@ -123,13 +123,20 @@ class KPTransferTester(ITester):
         uv1 = pred_out1['uv']
         uv2 = pred_out2['uv']
 
+        mesh1 = None
+        mesh2 = None
+
+        if self.config.use_arti:
+            mesh1 = pred_out1["arti"]
+            mesh2 = pred_out2["arti"]
+
         self._add_uv_summaries(pred_out1, pred_out2, batch1, batch2, step)
 
         kps1 = self._convert_to_int_indices(batch1['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
         kps2 = self._convert_to_int_indices(batch2['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
 
-        transfer_kps12, error_kps12 = self.map_kp_img1_to_img2(kps1, kps2, uv1, uv2, mask1, mask2)
-        transfer_kps21, error_kps21 = self.map_kp_img1_to_img2(kps2, kps1, uv2, uv1, mask2, mask1)
+        transfer_kps12, error_kps12 = self.map_kp_img1_to_img2(kps1, kps2, uv1, uv2, mask1, mask2, mesh1, mesh2)
+        transfer_kps21, error_kps21 = self.map_kp_img1_to_img2(kps2, kps1, uv2, uv1, mask2, mask1, mesh2, mesh1)
         
         return transfer_kps12, error_kps12, transfer_kps21, error_kps21, kps1, kps2
 
@@ -137,7 +144,7 @@ class KPTransferTester(ITester):
 
         return tensor.data.cpu().numpy()
 
-    def map_kp_img1_to_img2(self, kps1, kps2, uv_map1, uv_map2, mask1, mask2):
+    def map_kp_img1_to_img2(self, kps1, kps2, uv_map1, uv_map2, mask1, mask2, mesh1, mesh2):
 
         kp_mask = kps1[:, 2] * kps2[:, 2]
         kps1_vis = kps1[:, 2]
@@ -146,13 +153,13 @@ class KPTransferTester(ITester):
 
         uv_map1 = uv_map1.reshape(-1, img_H, img_W).permute(1, 2, 0)
         uv_map2 = uv_map2.reshape(-1, img_H, img_W).permute(1, 2, 0)
-        
+
         kps1_uv = uv_map1[kps1[:, 1], kps1[:, 0], :]
 
-        kps1_3d = self.model.uv_to_3d(kps1_uv).view(1, 1, -1 ,3)
-        uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2)).view(1, img_H, img_W, 3)
+        kps1_3d = self.model.uv_to_3d(kps1_uv, mesh1).view(1, 1, -1, 3)
+        uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2), mesh2).view(1, img_H, img_W, 3)
 
-        distances3d = torch.sum((kps1_3d.view(-1, 1, 3) - uv_points3d.view(1, -1, 3))**2, -1).sqrt()
+        distances3d = torch.sum((kps1_3d.view(-1, 1, 3) - uv_points3d.view(1, -1, 3)) ** 2, -1).sqrt()
 
         distances3d = distances3d + (1 - mask2.view(1, -1)) * 1000
         distances = distances3d
@@ -177,11 +184,10 @@ class KPTransferTester(ITester):
 
     def _get_model(self) -> CSM:
 
-        model = CSM(self.dataset.template_mesh,
-                    self.dataset.mean_shape,
-                    self.config.use_gt_cam,
-                    self.config.num_cam_poses,
-                    self.config.use_sampled_cam).to(self.device)
+        model = CSM(self.dataset.template_mesh, self.dataset.mean_shape, self.config.use_gt_cam,
+                    self.config.num_cam_poses, self.config.use_sampled_cam, self.config.use_arti,
+                    self.config.arti_epochs, self.dataset.arti_info_mesh, self.config.num_in_chans_unet,
+                    self.config.num_in_chans, self.config.scale_bias).to(self.device)
 
         return model
 

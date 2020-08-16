@@ -3,7 +3,6 @@ import os.path as osp
 import numpy as np
 import scipy.io as sio
 
-
 from src.data.dataset import IDataset
 from src.data.utils import transformations
 from src.data.utils.imnet import get_sysnet_id_for_imnet_class
@@ -66,17 +65,18 @@ class ImnetDataset(IDataset):
     def load_data(self):
 
         cache_dir = osp.join(self.config.dir.cache_dir, 'imnet')
-        model_dir = osp.join(self.config.dir.cache_dir, 'models', '%s' % self.category)
-
 
         anno_path = osp.join(cache_dir, 'data', '%s_%s.mat' % (self.sysnet_id, self.config.split))
         anno_sfm_path = osp.join(cache_dir, 'sfm', '%s_%s.mat' % (self.sysnet_id, self.config.split))
+
         validate_paths(anno_path, anno_sfm_path)
 
         # Load the annotation file.
         print('Loading imagenet annotations from %s' % anno_path)
         self.anno = sio.loadmat(anno_path, struct_as_record=False, squeeze_me=True)['images']
         self.anno_sfm = sio.loadmat(anno_sfm_path, struct_as_record=False, squeeze_me=True)['sfm_anno']
-        self.arti_info_mesh = mesh_info(obj_class = self.category, model_dir = model_dir)
+
+        model_dir = osp.join(self.config.dir.cache_dir, 'models', '%s' % self.category)
+        self.arti_info_mesh = mesh_info(obj_class=self.category, model_dir=model_dir)
 
         self.num_samples = len(self.anno)

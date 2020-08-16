@@ -13,7 +13,6 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/bird/map3.png'
-    template: '/mnt/raid/csmteam/datasets/cachedir/models/bird/bird.obj'
     data_dir: '/mnt/raid/csmteam/datasets/CUB_200_2011'
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir/cub'
 
@@ -23,14 +22,15 @@ train:
   shuffle: True
   workers: 16
   checkpoint: ''
-  out_dir: '/mnt/raid/csmteam/out/bird'
+  out_dir: '/mnt/raid/csmteam/out/arti'
   use_gt_cam: False
   use_sampled_cam: True
   use_arti: False
+  num_in_chans_unet: 4
   num_in_chans: 3
   num_cam_poses: 8
   pose_warmup_step: 2000
-  arti_epochs: 0
+  arti_epochs: 15
   scale_bias: 1.5 
   log:
     image_summary_step: 50
@@ -41,7 +41,8 @@ train:
     mask: 2.
     diverse: 0.01
     quat: 0.1
-    arti: 1.
+    arti: 10.
+    arti_angle: 0.001
   optim:
     lr: 0.0001
     beta1: 0.9

@@ -14,15 +14,14 @@ dataset:
 
   dir:
     texture: 'resources/color_maps/bird/map3.png'
-    template: 'datasets/cachedir/cub/model/mean_bird_fixed.obj'
     data_dir: 'datasets/CUB_200_2011'
     cache_dir: 'datasets/cachedir/cub'
 
 test:
-  batch_size: 5
+  batch_size: 1
   shuffle: True
   workers: 4
-  out_dir: 'out'
+  out_dir: 'out/arti/test'
   use_gt_cam: True
   num_cam_poses: 8
   use_sampled_cam: True

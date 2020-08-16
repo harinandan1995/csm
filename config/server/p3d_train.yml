@@ -27,9 +27,11 @@ train:
   use_gt_cam: False
   use_sampled_cam: False
   use_arti: False
+  num_in_chans_unet: 4
+  num_in_chans: 3
   num_cam_poses: 8
   pose_warmup_step: 4000
-  arti_epochs: 0
+  arti_epochs: 20
   log:
     image_summary_step: 30
     image_epoch: 1
@@ -39,6 +41,8 @@ train:
     mask: 1.5
     diverse: 0.01
     quat: 0.5
+    arti: 10.
+    arti_angle: 0
   optim:
     lr: 0.0001
     beta1: 0.9

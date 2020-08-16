@@ -1,9 +1,9 @@
 dataset:
-  category: 'car'
+  category: 'zebra'
   img_size: 256
   img_height: 320
   img_width: 512
-  split: 'val'
+  split: 'train'
   transform: 'flip'
   padding_frac: 0.05
   jitter_frac: 0.05
@@ -13,10 +13,10 @@ dataset:
   num_pairs: 10000
 
   dir:
-    texture: 'resources/color_maps/car/map3.png'
-    template: 'datasets/cachedir/shapenet/car/marching_cubes_mean.obj'
-    data_dir: 'datasets/PASCAL3D+_release1.1'
-    cache_dir: 'datasets/cachedir/p3d'
+    texture: 'resources/color_maps/horse/map3.png'
+    template: '/mnt/raid/csmteam/datasets/cachedir/models/zebra/zebra.obj'
+    data_dir: '/mnt/raid/csmteam/datasets/ImageNet'
+    cache_dir: '/mnt/raid/csmteam/datasets/cachedir'
 
 test:
   batch_size: 5

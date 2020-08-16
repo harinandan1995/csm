@@ -196,13 +196,14 @@ class Encoder(nn.Module):
         """
 
         super(Encoder, self).__init__()
+        self.use_conv1 = num_in_chans != 3
         self.conv1 = torch.nn.Conv2d(in_channels=num_in_chans,
                                      out_channels=3, kernel_size=1)
         self.resnet = ResNetConv()
         if not trainable:
             # freeze pretrained resnet layers
 
-            for param in resnet.parameters():
+            for param in self.resnet.parameters():
                 param.requires_grad = False
 
         self.conv2 = nn.Sequential(
@@ -236,8 +237,8 @@ class Encoder(nn.Module):
          F = Number of features.
        
         """
-
-        feats = self.conv1(img)
+        if self.use_conv1:
+            feats = self.conv1(img)
         feats = self.resnet(feats)
         feats = self.conv2(feats)
 

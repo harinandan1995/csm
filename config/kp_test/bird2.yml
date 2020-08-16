@@ -1,9 +1,9 @@
 dataset:
-  category: 'car'
+  category: 'bird'
   img_size: 256
   img_height: 320
   img_width: 512
-  split: 'val'
+  split: 'train'
   transform: 'flip'
   padding_frac: 0.05
   jitter_frac: 0.05
@@ -13,16 +13,15 @@ dataset:
   num_pairs: 10000
 
   dir:
-    texture: 'resources/color_maps/car/map3.png'
-    template: 'datasets/cachedir/shapenet/car/marching_cubes_mean.obj'
-    data_dir: 'datasets/PASCAL3D+_release1.1'
-    cache_dir: 'datasets/cachedir/p3d'
+    texture: 'resources/color_maps/bird/map3.png'
+    data_dir: 'datasets/CUB_200_2011'
+    cache_dir: 'datasets/cachedir/cub2'
 
 test:
-  batch_size: 5
+  batch_size: 1
   shuffle: True
   workers: 4
-  out_dir: 'out/test'
+  out_dir: 'out/arti/test'
   use_gt_cam: True
   num_cam_poses: 8
   use_sampled_cam: True

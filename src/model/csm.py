@@ -34,6 +34,7 @@ class CSM(torch.nn.Module):
                  use_arti=False,
                  arti_epochs=0,
                  arti_mesh_info: dict = {},
+                 num_in_chans_unet: int = 3,
                  num_in_chans: int = 3,
                  scale_bias: float = 1.):
         """
@@ -55,7 +56,8 @@ class CSM(torch.nn.Module):
         """
         super(CSM, self).__init__()
 
-        self.unet = UNet(4, 3, num_downs=5)
+        self.num_in_chans_unet = num_in_chans_unet
+        self.unet = UNet(num_in_chans_unet, 3, num_downs=5)
         self.uv_to_3d = UVto3D(mean_shape)
         self.template_mesh = template_mesh
         self.mask_renderer = MaskRenderer(device=self.template_mesh.device)
@@ -121,7 +123,12 @@ class CSM(torch.nn.Module):
             - (optional) arti_translation: A (B X K X 3) tensor containing the translation regarding the articulation
         """
 
-        sphere_points = self.unet(torch.cat((img, mask), 1))
+        if self.num_in_chans_unet == 4:
+            sphere_points = self.unet(torch.cat((img, mask), 1))
+        elif self.num_in_chans_unet == 3:
+            sphere_points = self.unet(img)
+        else:
+            print("ERROR")
         sphere_points = torch.tanh(sphere_points)
         sphere_points = torch.nn.functional.normalize(sphere_points, dim=1)
 
@@ -175,6 +182,11 @@ class CSM(torch.nn.Module):
 
         if self.use_arti and epochs >= self.arti_epochs:
             out["pred_arti_translation"] = arti_translation
+            out["pred_arti_angle"] = arti_rotation
+            arti_verts_s = arti_verts.detach()
+            out["arti"] = arti_verts_s
+        else:
+            out["arti"] = None
 
         return out
 

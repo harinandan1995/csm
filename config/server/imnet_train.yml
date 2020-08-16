@@ -18,28 +18,32 @@ dataset:
     cache_dir: '/mnt/raid/csmteam/datasets/cachedir'
 
 train:
-  batch_size: 2
-  epochs: 200
+  batch_size: 5
+  epochs: 400
   shuffle: True
   workers: 16
   checkpoint: ''
-  out_dir: '/mnt/raid/csmteam/out/imnet'
-  use_gt_cam: True
-  use_sampled_cam: False
+  out_dir: '/mnt/raid/csmteam/out/arti'
+  use_gt_cam: False
+  use_sampled_cam: True
   use_arti: False
+  num_in_chans_unet: 4
   num_in_chans: 3
   num_cam_poses: 8
-  pose_warmup_step: 1000
-  arti_epochs: 0
+  pose_warmup_step: 2000
+  arti_epochs: 15
+  scale_bias: 1.5
   log:
-    image_summary_step: 10
-    image_epoch: 1
+    image_summary_step: 50
+    image_epoch: 5
   loss:
     geometric: 3.
     visibility: 4.
     mask: 2.
     diverse: 0.01
     quat: 0.1
+    arti: 10.
+    arti_angle: 0.001
   optim:
     lr: 0.0001
     beta1: 0.9

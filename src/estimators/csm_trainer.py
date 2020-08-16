@@ -82,8 +82,7 @@ class CSMTrainer(ITrainer):
             0, 1, (len(self.dataset.kp_names), 3))
 
         # Running losses to calculate mean loss per epoch for all types of losses
-        self.running_loss = torch.tensor(
-            [0, 0, 0, 0, 0, 0], dtype=torch.float32)
+        self.running_loss = torch.tensor([0, 0, 0, 0, 0, 0, 0], dtype=torch.float32)
         if self.config.use_gt_cam:
             self.config.pose_warmup_step = 0
 
@@ -116,11 +115,13 @@ class CSMTrainer(ITrainer):
 
         pred_out = self.model(img, mask, scale, trans, quat, epoch)
 
-        loss = self._calculate_loss_for_predictions(mask,  pred_out,   epoch < self.config.arti_epochs)
+        loss = self._calculate_loss_for_predictions(mask, pred_out, epoch < self.config.pose_warmup_epochs,
+                                                    epoch < self.config.arti_epochs)
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, not_arti: bool = True) -> torch.tensor:
+    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, pose_warmup: bool = False,
+                                        not_arti: bool = True) -> torch.tensor:
         """Calculates the loss from the output
 
         :param mask: (B X 1 X H X W) foreground mask
@@ -165,11 +166,16 @@ class CSMTrainer(ITrainer):
                 loss[4] = self.config.loss.quat * \
                     quaternion_regularization_loss(pred_quat)
 
-        # TODO:add config: use_arti & loss.arti & arti_threshold
         if self.config.use_arti and not not_arti:
             pred_arti_translation = pred_out["pred_arti_translation"]
-            loss[5] = self.config.loss.arti * \
-                articulation_loss(pred_arti_translation)
+            pred_arti_angle = pred_out["pred_arti_angle"]
+            loss[5] = self.config.loss.arti * articulation_trans_loss(pred_arti_translation)
+            loss[6] = self.config.loss.arti_angle * articulation_angle_loss(pred_arti_angle)
+            self.verts = pred_out["arti"]
+
+        if self.config.use_gt_cam and (self.config.use_arti and not not_arti):
+            if self.config.loss.mask > 0:
+                loss[2] = self.config.loss.mask * mask_reprojection_loss(mask, pred_masks)
 
         self.running_loss = torch.add(self.running_loss, loss)
 
@@ -195,11 +201,14 @@ class CSMTrainer(ITrainer):
                 'loss/mask', self.running_loss[2], current_epoch)
             self.summary_writer.add_scalar(
                 'loss/diverse', self.running_loss[3], current_epoch)
+
+        if self.config.use_arti or not self.config.use_gt_cam:
             self.summary_writer.add_scalar(
                 'loss/quat', self.running_loss[4], current_epoch)
 
         if self.config.use_arti:
-            self.summary_writer.add_scalar('loss/arti_translation', self.running_loss[5], current_epoch)
+            self.summary_writer.add_scalar('loss/arti_trans', self.running_loss[5], current_epoch)
+            self.summary_writer.add_scalar('loss/arti_angle', self.running_loss[6], current_epoch)
 
         self.running_loss = torch.zeros_like(self.running_loss)
 
@@ -242,7 +251,8 @@ class CSMTrainer(ITrainer):
 
         model = CSM(self.dataset.template_mesh, self.dataset.mean_shape, self.config.use_gt_cam,
                     self.config.num_cam_poses, self.config.use_sampled_cam, self.config.use_arti,
-                    self.config.arti_epochs, self.dataset.arti_info_mesh, self.config.get("num_in_chans", 3), self.config.scale_bias).to(self.device)
+                    self.config.arti_epochs, self.dataset.arti_info_mesh, self.config.num_in_chans_unet,
+                    self.config.num_in_chans, self.config.scale_bias).to(self.device)
 
         return model
 
