@@ -91,7 +91,7 @@ class CSM(torch.nn.Module):
         self.num_cam_poses = num_cam_poses
 
     def forward(self, img: torch.Tensor, mask: torch.Tensor,
-                scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor, epochs: int):
+                scale: torch.Tensor, trans: torch.Tensor, quat: torch.Tensor, epochs: int=0):
         """
         For the given img and mask
         - uses the unet to predict sphere coordinates
