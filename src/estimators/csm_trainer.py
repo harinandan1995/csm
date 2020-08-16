@@ -115,12 +115,11 @@ class CSMTrainer(ITrainer):
 
         pred_out = self.model(img, mask, scale, trans, quat, epoch)
 
-        loss = self._calculate_loss_for_predictions(mask, pred_out, epoch < self.config.pose_warmup_epochs,
-                                                    epoch < self.config.arti_epochs)
+        loss = self._calculate_loss_for_predictions(mask, pred_out, epoch < self.config.arti_epochs)
 
         return loss, pred_out
 
-    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict, pose_warmup: bool = False,
+    def _calculate_loss_for_predictions(self, mask: torch.tensor, pred_out: dict,
                                         not_arti: bool = True) -> torch.tensor:
         """Calculates the loss from the output
 
