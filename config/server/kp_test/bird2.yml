@@ -26,7 +26,7 @@ test:
   num_cam_poses: 8
   use_sampled_cam: True
   use_arti: False
-   arti_epochs: 0
+  arti_epochs: 0
   num_in_chans_unet: 4
   num_in_chans: 3
   num_cam_poses: 8
