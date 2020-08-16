@@ -27,7 +27,7 @@ class KPTransferTester(ITester):
         self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
         self.num_kps = len(self.dataset.kp_names)
         self.kp_names = self.dataset.kp_names
-        self.kp_uv =  torch.from_numpy(self.dataset.kp_uv).to(device)
+        self.kp_uv =  torch.from_numpy(self.dataset.kp_uv).type(torch.float32).to(device)
 
         self.stats = {'kps1': [], 'kps2': [], 'transfer': [], 'kps_err': [], 'pair': [], }
 
