@@ -27,6 +27,7 @@ class KPTransferTester(ITester):
         self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
         self.num_kps = len(self.dataset.kp_names)
         self.kp_names = self.dataset.kp_names
+        self.kp_uv =  torch.from_numpy(self.dataset.kp_uv).type(torch.float32).to(device)
 
         self.stats = {'kps1': [], 'kps2': [], 'transfer': [], 'kps_err': [], 'pair': [], }
 
@@ -131,8 +132,8 @@ class KPTransferTester(ITester):
         kps1 = self._convert_to_int_indices(batch1['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
         kps2 = self._convert_to_int_indices(batch2['kp'].to(self.device, dtype=torch.float)).view(-1 , 3).long()
 
-        transfer_kps12, error_kps12 = self.map_kp_img1_to_img2(kps1, kps2, uv1, uv2, mask1, mask2, mesh1, mesh2)
-        transfer_kps21, error_kps21 = self.map_kp_img1_to_img2(kps2, kps1, uv2, uv1, mask2, mask1, mesh2, mesh1)
+        transfer_kps12, error_kps12 = self.map_kp_img(kps1, uv1, mask1, mesh1)
+        transfer_kps21, error_kps21 = self.map_kp_img(kps2, uv2, mask2, mesh2)
         
         return transfer_kps12, error_kps12, transfer_kps21, error_kps21, kps1, kps2
 
@@ -140,30 +141,23 @@ class KPTransferTester(ITester):
 
         return tensor.data.cpu().numpy()
 
-    def map_kp_img1_to_img2(self, kps1, kps2, uv_map1, uv_map2, mask1, mask2, mesh1, mesh2):
+    def map_kp_img(self, kps2, uv_map2, mask2, mesh2):
 
-        kp_mask = kps1[:, 2] * kps2[:, 2]
-        kps1_vis = kps1[:, 2]
+        kp_mask = kps2[:, 2]
         img_H = uv_map2.size(2)
         img_W = uv_map2.size(3)
 
-        uv_map1 = uv_map1.reshape(-1, img_H, img_W).permute(1, 2, 0)
         uv_map2 = uv_map2.reshape(-1, img_H, img_W).permute(1, 2, 0)
-        
-        kps1_uv = uv_map1[kps1[:, 1], kps1[:, 0], :]
 
-        #kps1_3d = self.model.uv_to_3d(kps1_uv, mesh1).view(1, 1, -1 ,3)
-        #uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2), mesh2).view(1, img_H, img_W, 3)
-
-        kps1_3d = self.model.uv_to_3d(kps1_uv, None).view(1, 1, -1, 3)
+        kps1_3d = self.model.uv_to_3d(self.kp_uv, None).view(1, 1, -1 ,3)
         uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2), None).view(1, img_H, img_W, 3)
 
         distances3d = torch.sum((kps1_3d.view(-1, 1, 3) - uv_points3d.view(1, -1, 3))**2, -1).sqrt()
 
         distances3d = distances3d + (1 - mask2.view(1, -1)) * 1000
         distances = distances3d
-        min_dist, min_indices = torch.min(distances.view(len(kps1), -1), dim=1)
-        min_dist = min_dist + (1 - kps1_vis).float() * 1000
+        min_dist, min_indices = torch.min(distances.view(len(self.kp_uv), -1), dim=1)
+        min_dist = min_dist
         transfer_kps = torch.stack([min_indices % img_W, min_indices // img_W], dim=1)
 
         kp_transfer_error = torch.norm((transfer_kps.float() - kps2[:, 0:2]), dim=1)
