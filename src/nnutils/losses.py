@@ -149,7 +149,7 @@ def articulation_trans_loss(translation, reduction='mean'):
     :param reduction: 
     :return: L2-loss for the translation
     """
-    loss = translation.pow(2).sqrt().sum(-1).sum(-1).mean(-1)
+    loss = translation.pow(2).sum(-1).sum(-1).mean(-1)
     if reduction is "mean":
         return loss.mean()
     else:
