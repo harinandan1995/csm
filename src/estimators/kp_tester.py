@@ -185,7 +185,8 @@ class KPTransferTester(ITester):
 
         model = CSM(self.dataset.template_mesh, self.dataset.mean_shape, self.config.use_gt_cam,
                     self.config.num_cam_poses, self.config.use_sampled_cam, self.config.use_arti,
-                    self.config.arti_epochs, self.dataset.arti_info_mesh, self.device, self.config.num_in_chans).to(self.device)
+                    self.config.arti_epochs, self.dataset.arti_info_mesh, self.config.num_in_chans_unet,
+                    self.config.num_in_chans).to(self.device)
 
         return model
 

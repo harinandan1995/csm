@@ -34,7 +34,7 @@ class CSM(torch.nn.Module):
                  use_arti=False,
                  arti_epochs=0,
                  arti_mesh_info: dict = {},
-                 num_in_chans_unet: int = 3,
+                 num_in_chans_unet: int = 4,
                  num_in_chans: int = 3,
                  scale_bias: float = 1.):
         """

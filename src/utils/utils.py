@@ -105,6 +105,8 @@ def add_kp_test_arguments(sub_parser: argparse.ArgumentParser):
     sub_parser.add_argument('--test.use_sampled_cam',
                             required=False, type=str2bool)
     sub_parser.add_argument('--test.use_arti', required=False, type=str2bool)
+    sub_parser.add_argument('--test.num_in_chans_unet', required=False, type=int)
+    sub_parser.add_argument('--test.num_in_chans', required=False, type=int)
     sub_parser.add_argument('-ck', '--test.checkpoint',
                             required=False, type=str)
     sub_parser.add_argument(
