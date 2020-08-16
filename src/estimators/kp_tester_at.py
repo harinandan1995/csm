@@ -27,6 +27,7 @@ class KPTransferTester(ITester):
         self.key_point_colors = np.random.uniform(0, 1, (len(self.dataset.kp_names), 3))
         self.num_kps = len(self.dataset.kp_names)
         self.kp_names = self.dataset.kp_names
+        self.kp_uv =  torch.from_numpy(self.dataset.kp_uv).to(device)
 
         self.stats = {'kps1': [], 'kps2': [], 'transfer': [], 'kps_err': [], 'pair': [], }
 
@@ -148,14 +149,14 @@ class KPTransferTester(ITester):
 
         uv_map2 = uv_map2.reshape(-1, img_H, img_W).permute(1, 2, 0)
 
-        kps1_3d = self.model.uv_to_3d(self.dataset.kp_uv.to("cuda"), None).view(1, 1, -1 ,3)
+        kps1_3d = self.model.uv_to_3d(self.kp_uv, None).view(1, 1, -1 ,3)
         uv_points3d = self.model.uv_to_3d(uv_map2.reshape(-1, 2), mesh2).view(1, img_H, img_W, 3)
 
         distances3d = torch.sum((kps1_3d.view(-1, 1, 3) - uv_points3d.view(1, -1, 3))**2, -1).sqrt()
 
         distances3d = distances3d + (1 - mask2.view(1, -1)) * 1000
         distances = distances3d
-        min_dist, min_indices = torch.min(distances.view(len(self.dataset.kp_uv), -1), dim=1)
+        min_dist, min_indices = torch.min(distances.view(len(self.kp_uv), -1), dim=1)
         min_dist = min_dist
         transfer_kps = torch.stack([min_indices % img_W, min_indices // img_W], dim=1)
 
