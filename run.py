@@ -4,6 +4,7 @@ import warnings
 import torch.utils.data
 
 from src.scripts.kp_test import start_test
+from src.scripts.kp_test_at import start_test_at
 from src.scripts.train import start_train
 from src.utils.utils import add_train_arguments, add_kp_test_arguments
 
@@ -45,3 +46,6 @@ if __name__ == '__main__':
     elif args.mode == 'kp_test':
         print('Starting the key point transfer testing........')
         start_test(args.config, args.__dict__, args.device)
+    elif args.mode == 'kp_test_at':
+        print('Starting the key point transfer testing........')
+        start_test_at(args.config, args.__dict__, args.device)

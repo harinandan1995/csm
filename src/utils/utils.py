@@ -62,6 +62,7 @@ def add_train_arguments(sub_parser: argparse.ArgumentParser):
     sub_parser.add_argument('--train.use_arti', required=False, type=str2bool)
     sub_parser.add_argument('--train.pose_warmup_epochs', required=False, type=int)
     sub_parser.add_argument('--train.arti_epochs', required=False, type=int)
+    sub_parser.add_argument('--train.num_in_chans_unet', required=False, type=int)
     sub_parser.add_argument('--train.num_in_chans', required=False, type=int)
 
     sub_parser.add_argument('--train.loss.geometric', required=False, type=float)
