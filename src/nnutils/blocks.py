@@ -239,6 +239,8 @@ class Encoder(nn.Module):
         """
         if self.use_conv1:
             feats = self.conv1(img)
+        else:
+            feats = img
         feats = self.resnet(feats)
         feats = self.conv2(feats)
 
