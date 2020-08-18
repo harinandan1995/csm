@@ -26,6 +26,9 @@ test:
   use_gt_cam: True
   num_cam_poses: 8
   use_sampled_cam: True
+  use_arti: False
+  num_in_chans_unet: 4
+  num_in_chans: 3
   alpha: [0.05, 0.1, 0.2]
   checkpoint: ''
   add_summaries: True

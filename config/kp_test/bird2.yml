@@ -28,7 +28,6 @@ test:
   use_arti: False
   num_in_chans_unet: 4
   num_in_chans: 3
-  num_cam_poses: 8
   alpha: [0.05, 0.1, 0.2]
   checkpoint: ''
   add_summaries: True
