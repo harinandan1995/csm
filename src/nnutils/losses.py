@@ -150,7 +150,7 @@ def articulation_trans_loss(translation, reduction='mean'):
     :return: L2-loss for the translation
     """
     loss = translation.pow(2).sum(-1).sum(-1).mean(-1)
-    if reduction is "mean":
+    if reduction == "mean":
         return loss.mean()
     else:
         return loss
@@ -163,7 +163,7 @@ def articulation_angle_loss(translation, reduction='mean'):
     :return: L2-loss for the translation
     """
     loss = translation.abs().sum(-1).mean(-1)
-    if reduction is "mean":
+    if reduction == "mean":
         return loss.mean()
     else:
         return loss
